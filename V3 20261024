@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智庫管家 - Teachable Machine AI 零件辨識與智能歸位系統</title>
+  
+  <!-- TensorFlow.js 與 Teachable Machine Image 函式庫 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; padding: 20px; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .header-title { display: flex; align-items: center; gap: 15px; }
+    .header-title i { font-size: 2rem; color: var(--accent); }
+    .header-title h1 { font-size: 1.5rem; }
+    .header-title span { font-size: 0.9rem; background: #0369a1; padding: 3px 8px; border-radius: 4px; }
+    .header-title p { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-warning { background: var(--warning); color: #000; }
+    .btn-warning:hover { background: #d97706; color: #fff; }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 992px) {
+      .layout-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .webcam-box {
+      position: relative;
+      width: 100%;
+      height: 340px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .webcam-box video, .webcam-box canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+    .webcam-placeholder {
+      position: absolute;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 20px;
+    }
+    .webcam-placeholder i { font-size: 3rem; margin-bottom: 10px; display: block; }
+    
+    .crosshair {
+      position: absolute;
+      width: 350px;
+      height: 300px;
+      border: 2px dashed rgba(56, 189, 248, 0.6);
+      pointer-events: none;
+      border-radius: 12px;
+    }
+
+    /* 單一最高機率長條圖區塊 */
+    .prediction-bars { margin-top: 15px; }
+    .pred-row { margin-bottom: 8px; }
+    .pred-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; }
+    .pred-track { width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+    .pred-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.25s ease; }
+
+    .nav-box {
+      background: #0f172a;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 15px;
+    }
+    .part-name { font-size: 1.8rem; font-weight: bold; margin: 10px 0; color: #fff; }
+    .nav-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    .stat-card {
+      background: #1e293b;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .stat-card .label { font-size: 0.8rem; color: var(--text-muted); }
+    .stat-card .val { font-size: 1.3rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
+
+    .matrix-section { margin-top: 24px; }
+    .zone-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 15px;
+    }
+    @media (max-width: 768px) {
+      .zone-container { grid-template-columns: 1fr; }
+    }
+    .zone-col {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .zone-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 12px; display: block; color: var(--text-muted); }
+    .drawers-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .drawer-node {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 6px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .drawer-node:hover {
+      border-color: var(--accent);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .drawer-node .d-code { font-weight: bold; }
+    .drawer-node .d-item { font-size: 0.75rem; color: var(--text-muted); }
+
+    .drawer-node.active-guide {
+      background: var(--accent) !important;
+      color: #000 !important;
+      border-color: #fff !important;
+      box-shadow: 0 0 16px var(--accent);
+      animation: pulse 1s infinite alternate;
+    }
+    .drawer-node.active-guide .d-item { color: #000 !important; font-weight: bold; }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+
+    .log-list {
+      max-height: 160px;
+      overflow-y: auto;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+      color: var(--text-muted);
+    }
+    .log-item span:first-child { color: var(--text-main); font-weight: 500; }
+
+    /* 通用彈跳視窗樣式 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .modal-select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      margin: 15px 0 20px 0;
+      outline: none;
+    }
+    .modal-select:focus {
+      border-color: var(--accent);
+    }
+
+    /* 顏色設定清單項目 */
+    .color-setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #0f172a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .color-setting-item input[type="color"] {
+      border: none;
+      width: 40px;
+      height: 32px;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <i class="fa-solid fa-microchip"></i>
+      <div>
+        <h1>[V2]智庫管家 <span>Teachable Machine AI</span></h1>
+        <p>東海高中 · 明星三缺一 ｜ 基於 AI 視覺之零件辨識與智能歸位系統</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="startBtn" onclick="initCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
+      <button class="btn btn-secondary" id="switchBtn" onclick="switchCamera()"><i class="fa-solid fa-arrows-rotate"></i> 切換鏡頭</button>
+      <button class="btn btn-secondary" onclick="openColorSettings()"><i class="fa-solid fa-palette"></i> 標籤顏色</button>
+      <button class="btn btn-secondary" onclick="openModelSettings()"><i class="fa-solid fa-gear"></i> 模型設定</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="layout-grid">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.9rem;">
+          <span id="camStatus">狀態：未開啟</span>
+          <span id="fpsCounter" style="color:var(--accent);">進度: 等待開啟</span>
+        </div>
+        <div class="webcam-box" id="webcam-box">
+          <div class="webcam-placeholder" id="placeholder">
+            <i class="fa-solid fa-camera-rotate"></i>
+            <p>點擊上方「開啟鏡頭檢測」載入雲端模型並進行即時辨識</p>
+          </div>
+          <div class="crosshair"></div>
+        </div>
+
+        <!-- 僅顯示最高可能性類別的長條圖 -->
+        <div class="prediction-bars" id="predBars">
+          <div class="pred-row">
+            <div class="pred-info">
+              <span><b>最高可能性類別：</b><span id="topClassName">--</span></span>
+              <span id="topClassVal" style="font-weight: bold; color: var(--accent);">--%</span>
+            </div>
+            <div class="pred-track">
+              <div class="pred-fill" id="topClassBar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 1.1rem; display: flex; justify-content: space-between;">
+          <span>AI 防呆歸位導航</span>
+          <span id="guideBadge" style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px;">STANDBY</span>
+        </h2>
+
+        <div class="nav-box">
+          <div style="color:var(--text-muted); font-size: 0.85rem;">辨識零件類別</div>
+          <div class="part-name" id="detectedName">等待放置零件...</div>
+          
+          <div class="nav-details">
+            <div class="stat-card">
+              <div class="label">目標抽屜格位</div>
+              <div class="val" id="targetDrawer">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">平均信心度</div>
+              <div class="val" id="targetConf">--%</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <p id="partSpec" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+              規格：請將零件置於取景框中央以獲得最佳推論精確度
+            </p>
+            <!-- 快速分配按鈕 (未綁定抽屜時動態出現) -->
+            <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; margin:12px auto 0 auto; font-size:0.9rem; padding:8px 16px;">
+              <i class="fa-solid fa-plus-circle"></i> 倉庫無此零件：加入倉庫格位
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <span style="font-size:0.9rem; font-weight:bold;">最近歸位流水帳</span>
+          <div class="log-list" id="logList">
+            <div class="log-item"><span>系統</span><span>待命紀錄中...</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card matrix-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3><i class="fa-solid fa-boxes-stacked"></i> 工場庫房零件抽屜座標矩陣 (A / B / C 區)</h3>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可直接修改或清空；辨識成功時對應抽屜會自動亮起。</p>
+        </div>
+        <button class="btn btn-secondary" onclick="resetDrawerMapping()" style="font-size:0.8rem; padding:5px 10px;">
+          <i class="fa-solid fa-rotate-left"></i> 重設所有抽屜
+        </button>
+      </div>
+
+      <div class="zone-container">
+        <div class="zone-col">
+          <span class="zone-title">A 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-A-01" onclick="editDrawer('A-01')"></div>
+            <div class="drawer-node" id="drawer-A-02" onclick="editDrawer('A-02')"></div>
+            <div class="drawer-node" id="drawer-A-03" onclick="editDrawer('A-03')"></div>
+            <div class="drawer-node" id="drawer-A-04" onclick="editDrawer('A-04')"></div>
+          </div>
+        </div>
+
+        <div class="zone-col">
+          <span class="zone-title">B 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-B-01" onclick="editDrawer('B-01')"></div>
+            <div class="drawer-node" id="drawer-B-02" onclick="editDrawer('B-02')"></div>
+            <div class="drawer-node" id="drawer-B-03" onclick="editDrawer('B-03')"></div>
+            <div class="drawer-node" id="drawer-B-04" onclick="editDrawer('B-04')"></div>
+          </div>
+        </div>
+
+        <div class="zone-col">
+          <span class="zone-title">C 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-C-01" onclick="editDrawer('C-01')"></div>
+            <div class="drawer-node" id="drawer-C-02" onclick="editDrawer('C-02')"></div>
+            <div class="drawer-node" id="drawer-C-03" onclick="editDrawer('C-03')"></div>
+            <div class="drawer-node" id="drawer-C-04" onclick="editDrawer('C-04')"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 彈出抽屜選擇對話框 (Modal) -->
+  <div class="modal-overlay" id="assignModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-box-archive" style="color:var(--accent);"></i>
+        選擇欲入庫的抽屜格位
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px;">
+        欲入庫零件：<b id="modalPartName" style="color:var(--warning); font-size:1.1rem;"></b>
+      </p>
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
+      <select class="modal-select" id="drawerSelect"></select>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
+        <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈出標籤顏色自訂視窗 (Modal) -->
+  <div class="modal-overlay" id="colorModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-palette" style="color:var(--accent);"></i>
+        自訂類別顏色 (LED / 零件)
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px; margin-bottom:15px;">
+        點選右側色塊可自由指定各類別的長條圖與抽屜顏色：
+      </p>
+
+      <div id="colorSettingList" style="max-height:240px; overflow-y:auto; margin-bottom:15px;"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button class="btn btn-secondary" onclick="resetDefaultColors()" style="font-size:0.8rem; padding:6px 12px;">恢復預設配色</button>
+        <button class="btn" onclick="saveCustomColors()"><i class="fa-solid fa-floppy-disk"></i> 儲存顏色</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 預設模型分享連結
+    let MODEL_URL = "https://teachablemachine.withgoogle.com/models/6LGF_0plL/";
+
+    // 醒目色彩調色盤
+    const PALETTE = [
+      "#22c55e", // 亮綠
+      "#ef4444", // 亮紅
+      "#38bdf8", // 亮青
+      "#f59e0b", // 琥珀黃
+      "#a855f7", // 紫色
+      "#ec4899", // 粉紅
+      "#14b8a6", // 藍綠
+      "#f97316"  // 橙色
+    ];
+    let classColorMap = {};
+
+    // 抽屜配置對應表
+    const ALL_DRAWER_KEYS = [
+      "A-01", "A-02", "A-03", "A-04",
+      "B-01", "B-02", "B-03", "B-04",
+      "C-01", "C-02", "C-03", "C-04"
+    ];
+
+    const DEFAULT_DRAWER_MAP = {
+      "A-01": "grb", "A-02": "", "A-03": "", "A-04": "",
+      "B-01": "", "B-02": "rrr", "B-03": "", "B-04": "",
+      "C-01": "", "C-02": "", "C-03": "", "C-04": ""
+    };
+    let drawerMap = {};
+
+    // 當前等待入庫的零件名稱
+    let unassignedClassName = "";
+
+    function loadDrawerMapping() {
+      const saved = localStorage.getItem("zhiku_drawer_map");
+      if (saved) {
+        try {
+          drawerMap = JSON.parse(saved);
+        } catch (e) {
+          drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+        }
+      } else {
+        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+      }
+      renderDrawers();
+    }
+
+    function saveDrawerMapping() {
+      localStorage.setItem("zhiku_drawer_map", JSON.stringify(drawerMap));
+      renderDrawers();
+    }
+
+    function renderDrawers() {
+      for (let code of ALL_DRAWER_KEYS) {
+        const el = document.getElementById(`drawer-${code}`);
+        if (el) {
+          const item = drawerMap[code] || "";
+          el.innerHTML = `
+            <span class="d-code">${code}</span>
+            <span class="d-item">${item ? item : '(空位)'}</span>
+          `;
+          if (item) {
+            el.style.borderColor = "rgba(56, 189, 248, 0.4)";
+          } else {
+            el.style.borderColor = "var(--border-color)";
+          }
+        }
+      }
+    }
+
+    function editDrawer(drawerCode) {
+      const current = drawerMap[drawerCode] || "";
+      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb、R、G，留白代表清空）：`, current);
+      if (input !== null) {
+        drawerMap[drawerCode] = input.trim();
+        saveDrawerMapping();
+      }
+    }
+
+    function resetDrawerMapping() {
+      if (confirm("確定要將所有抽屜還原為預設配置嗎？")) {
+        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+        saveDrawerMapping();
+      }
+    }
+
+    function findDrawerByClass(className) {
+      if (!className || className.toLowerCase() === "empty") return null;
+      for (let code in drawerMap) {
+        if (drawerMap[code] && drawerMap[code].toLowerCase() === className.toLowerCase()) {
+          return code;
+        }
+      }
+      return null;
+    }
+
+    // ========== 自訂顏色設定功能 ==========
+    function loadSavedColors() {
+      const saved = localStorage.getItem("zhiku_custom_colors");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch(e) { return {}; }
+      }
+      return {};
+    }
+
+    function openColorSettings() {
+      if (!model) {
+        alert("請先點選「開啟鏡頭檢測」載入模型後，再設定標籤顏色！");
+        return;
+      }
+      const list = document.getElementById("colorSettingList");
+      list.innerHTML = "";
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue; // 忽略背景空位
+
+        const currentColor = classColorMap[cName] || "#38bdf8";
+        const item = document.createElement("div");
+        item.className = "color-setting-item";
+        item.innerHTML = `
+          <span style="font-weight:600; font-size:0.95rem;">${cName}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="color" id="picker-${cName}" value="${currentColor}">
+          </div>
+        `;
+        list.appendChild(item);
+      }
+      document.getElementById("colorModal").style.display = "flex";
+    }
+
+    function closeColorSettings() {
+      document.getElementById("colorModal").style.display = "none";
+    }
+
+    function saveCustomColors() {
+      const customColors = loadSavedColors();
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue;
+        const picker = document.getElementById(`picker-${cName}`);
+        if (picker) {
+          customColors[cName] = picker.value;
+          classColorMap[cName] = picker.value;
+        }
+      }
+      localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
+      closeColorSettings();
+      alert("顏色設定已更新並永久保存！");
+    }
+
+    function resetDefaultColors() {
+      if (confirm("確定要將所有顏色重設為系統預設配色嗎？")) {
+        localStorage.removeItem("zhiku_custom_colors");
+        applyModelColors();
+        openColorSettings(); // 刷新介面
+      }
+    }
+
+    function applyModelColors() {
+      const savedColors = loadSavedColors();
+      classColorMap = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") {
+          classColorMap[cName] = "#94a3b8";
+        } else if (savedColors[cName]) {
+          classColorMap[cName] = savedColors[cName];
+        } else {
+          // 根據名稱提供人性化初值 (如含有 R 給紅，含有 G 給綠)
+          if (/^r/i.test(cName)) {
+            classColorMap[cName] = "#ef4444";
+          } else if (/^g/i.test(cName)) {
+            classColorMap[cName] = "#22c55e";
+          } else if (/^b/i.test(cName)) {
+            classColorMap[cName] = "#38bdf8";
+          } else {
+            classColorMap[cName] = PALETTE[i % PALETTE.length];
+          }
+        }
+      }
+    }
+
+    // ========== 彈出抽屜選擇清單功能 ==========
+    function openAssignModal() {
+      if (!unassignedClassName) return;
+
+      document.getElementById("modalPartName").innerText = unassignedClassName;
+      const select = document.getElementById("drawerSelect");
+      select.innerHTML = "";
+
+      ALL_DRAWER_KEYS.forEach(code => {
+        const opt = document.createElement("option");
+        opt.value = code;
+        const currentItem = drawerMap[code];
+        if (currentItem) {
+          opt.innerText = `${code} (目前放置: ${currentItem})`;
+        } else {
+          opt.innerText = `${code} (空位)`;
+        }
+        select.appendChild(opt);
+      });
+
+      document.getElementById("assignModal").style.display = "flex";
+    }
+
+    function closeAssignModal() {
+      document.getElementById("assignModal").style.display = "none";
+    }
+
+    function confirmDrawerAssign() {
+      const selectedDrawer = document.getElementById("drawerSelect").value;
+      if (!selectedDrawer || !unassignedClassName) return;
+
+      const existing = drawerMap[selectedDrawer];
+      if (existing && existing !== unassignedClassName) {
+        if (!confirm(`抽屜 [${selectedDrawer}] 原本放置的是「${existing}」，確定要替換為「${unassignedClassName}」嗎？`)) {
+          return;
+        }
+      }
+
+      drawerMap[selectedDrawer] = unassignedClassName;
+      saveDrawerMapping();
+
+      closeAssignModal();
+      document.getElementById("quickAssignBtn").style.display = "none";
+
+      const drawerEl = document.getElementById("targetDrawer");
+      const specEl = document.getElementById("partSpec");
+      drawerEl.innerText = selectedDrawer;
+      drawerEl.style.color = classColorMap[unassignedClassName] || "var(--accent)";
+      specEl.innerText = `規格：已成功入庫至 [${selectedDrawer}]，未來辨識將直接精確導航！`;
+
+      const drawerNode = document.getElementById(`drawer-${selectedDrawer}`);
+      if (drawerNode) {
+        drawerNode.classList.add("active-guide");
+      }
+
+      addLog(unassignedClassName, selectedDrawer);
+      alert(`設定成功！類別 [${unassignedClassName}] 已永久指定至抽屜 [${selectedDrawer}]。`);
+    }
+
+    // ========== AI 模型與相機辨識流程 ==========
+    let model, webcam, maxPredictions;
+    let isPredicting = false;
+    let lastLoggedPart = null;
+
+    // 保留使用者調整的取樣與等待參數
+    const SAMPLE_COUNT = 5;
+    const COOLDOWN_MS = 500;
+    let sampleBuffer = [];
+    let cooldownUntil = 0;
+    let currentFacingMode = "environment";
+
+    async function openModelSettings() {
+      const input = prompt("請輸入 Teachable Machine 模型分享網址：", MODEL_URL);
+      if (!input) return;
+
+      const newUrl = input.trim().endsWith('/') ? input.trim() : input.trim() + '/';
+      MODEL_URL = newUrl;
+
+      if (webcam) {
+        document.getElementById("camStatus").innerText = "狀態：重新載入新模型中...";
+        try {
+          await loadAIModel();
+          sampleBuffer = [];
+          document.getElementById("camStatus").innerText = "狀態：實時運算中";
+          alert("新模型載入成功！類別與顏色已同步更新。");
+        } catch (err) {
+          alert("新模型載入失敗！請檢查網址是否正確。");
+        }
+      } else {
+        alert(`模型網址已變更為：\n${MODEL_URL}\n點擊「開啟鏡頭檢測」即可使用新模型。`);
+      }
+    }
+
+    async function loadAIModel() {
+      const modelURL = MODEL_URL + "model.json";
+      const metadataURL = MODEL_URL + "metadata.json";
+
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      // 套用顏色
+      applyModelColors();
+    }
+
+    async function initCam() {
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入雲端模型中...';
+
+      try {
+        await loadAIModel();
+        await startWebcam();
+
+        document.getElementById("camStatus").innerText = "狀態：實時運算中";
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 檢測運作中';
+        isPredicting = true;
+      } catch (err) {
+        console.error(err);
+        alert("模型載入失敗！請確認網路是否正常，或檢查模型分享連結。");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
+      }
+    }
+
+    async function startWebcam() {
+      const isUser = currentFacingMode === "user";
+      webcam = new tmImage.Webcam(340, 340, isUser);
+      await webcam.setup({ facingMode: currentFacingMode });
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      document.getElementById("placeholder").style.display = "none";
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      box.appendChild(webcam.canvas);
+    }
+
+    async function switchCamera() {
+      if (!isPredicting) {
+        alert("請先點擊「開啟鏡頭檢測」！");
+        return;
+      }
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      if (webcam) webcam.stop();
+      await startWebcam();
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      if (!isPredicting || !model) return;
+
+      const now = performance.now();
+
+      if (now < cooldownUntil) {
+        const remaining = Math.ceil((cooldownUntil - now) / 100) / 10;
+        document.getElementById("fpsCounter").innerText = `鎖定顯示中 (${remaining}s)`;
+        return;
+      }
+
+      const prediction = await model.predict(webcam.canvas);
+      
+      const frameData = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        frameData[prediction[i].className] = prediction[i].probability;
+      }
+      sampleBuffer.push(frameData);
+
+      document.getElementById("fpsCounter").innerText = `AI 取樣分析中: ${sampleBuffer.length} / ${SAMPLE_COUNT}`;
+
+      if (sampleBuffer.length >= SAMPLE_COUNT) {
+        evaluateSamples();
+        sampleBuffer = [];                 
+        cooldownUntil = performance.now() + COOLDOWN_MS; 
+      }
+    }
+
+    function evaluateSamples() {
+      const classTotals = {};
+
+      sampleBuffer.forEach(frame => {
+        for (let className in frame) {
+          classTotals[className] = (classTotals[className] || 0) + frame[className];
+        }
+      });
+
+      let bestClass = "empty";
+      let highestAvgProb = 0;
+
+      for (let className in classTotals) {
+        const avgProb = classTotals[className] / SAMPLE_COUNT;
+        if (avgProb > highestAvgProb) {
+          highestAvgProb = avgProb;
+          bestClass = className;
+        }
+      }
+
+      const percent = Math.round(highestAvgProb * 100);
+      const color = classColorMap[bestClass] || "var(--accent)";
+
+      // 單一最高機率長條圖更新
+      document.getElementById("topClassName").innerText = `${bestClass}`;
+      document.getElementById("topClassName").style.color = color;
+      
+      const valEl = document.getElementById("topClassVal");
+      valEl.innerText = `${percent}%`;
+      valEl.style.color = color;
+
+      const fillBar = document.getElementById("topClassBar");
+      fillBar.style.width = `${percent}%`;
+      fillBar.style.background = color;
+
+      updateNavigation(bestClass, highestAvgProb);
+    }
+
+    function updateNavigation(className, confidence) {
+      const color = classColorMap[className] || "var(--accent)";
+      const targetDrawer = findDrawerByClass(className);
+
+      const nameEl = document.getElementById("detectedName");
+      const drawerEl = document.getElementById("targetDrawer");
+      const confEl = document.getElementById("targetConf");
+      const specEl = document.getElementById("partSpec");
+      const badge = document.getElementById("guideBadge");
+      const assignBtn = document.getElementById("quickAssignBtn");
+
+      // 清除所有抽屜高亮
+      document.querySelectorAll(".drawer-node").forEach(node => {
+        node.classList.remove("active-guide");
+      });
+
+      // 1. 純背景狀態 (只有在模型明確判定為 empty 且非零件時)
+      if (className.toLowerCase() === "empty") {
+        nameEl.innerText = "等待放置零件...";
+        nameEl.style.color = "var(--text-muted)";
+        drawerEl.innerText = "--";
+        drawerEl.style.color = "var(--accent)";
+        confEl.innerText = `${Math.round(confidence * 100)}%`;
+        specEl.innerText = "規格：請將零件置於取景框中央以獲得最佳推論精確度";
+        badge.innerText = "STANDBY";
+        badge.style.background = "#334155";
+        assignBtn.style.display = "none";
+        unassignedClassName = "";
+        return;
+      }
+
+      // 2. 有辨識出零件類別 (無論信心度高低)
+      nameEl.innerText = className;
+      nameEl.style.color = color;
+      confEl.innerText = `${Math.round(confidence * 100)}%`;
+      badge.innerText = "LOCATED";
+      badge.style.background = "#059669";
+
+      if (targetDrawer) {
+        // 情況 A：倉庫內已有此抽屜位置
+        assignBtn.style.display = "none";
+        unassignedClassName = "";
+
+        drawerEl.innerText = targetDrawer;
+        drawerEl.style.color = color;
+        specEl.innerText = `規格：已成功對應至庫房 [${targetDrawer}] 格位`;
+
+        const drawerNode = document.getElementById(`drawer-${targetDrawer}`);
+        if (drawerNode) {
+          drawerNode.classList.add("active-guide");
+          drawerNode.style.setProperty("--accent", color);
+        }
+
+        if (lastLoggedPart !== className && confidence > 0.85) {
+          addLog(className, targetDrawer);
+          lastLoggedPart = className;
+        }
+      } else {
+        // 情況 B：倉庫沒有這個零件，立即顯示加入倉庫按鈕
+        unassignedClassName = className;
+        drawerEl.innerText = "未入庫";
+        drawerEl.style.color = "var(--warning)";
+        specEl.innerText = `提示：工廠庫房尚未收納「${className}」，請點擊下方按鈕選擇抽屜完成入庫。`;
+        assignBtn.style.display = "inline-flex";
+      }
+    }
+
+    function addLog(name, drawer) {
+      const list = document.getElementById("logList");
+      const time = new Date().toLocaleTimeString();
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.innerHTML = `<span>${name}</span> <span>歸位至 [${drawer}] · ${time}</span>`;
+      list.prepend(item);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadDrawerMapping();
+    });
+  </script>
+</body>
+</html>
