@@ -107,8 +107,8 @@
     
     .crosshair {
       position: absolute;
-      width: 230px;
-      height: 230px;
+      width: 350px;
+      height: 300px;
       border: 2px dashed rgba(56, 189, 248, 0.6);
       pointer-events: none;
       border-radius: 12px;
@@ -452,8 +452,8 @@
     let isPredicting = false;
     let lastLoggedPart = null;
 
-    const SAMPLE_COUNT = 15;
-    const COOLDOWN_MS = 800;
+    const SAMPLE_COUNT = 5;
+    const COOLDOWN_MS = 500;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     let currentFacingMode = "environment";
