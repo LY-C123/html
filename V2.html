@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智庫管家 - Teachable Machine AI 零件辨識與智能歸位系統</title>
+  
+  <!-- TensorFlow.js 與 Teachable Machine Image 函式庫 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; padding: 20px; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .header-title { display: flex; align-items: center; gap: 15px; }
+    .header-title i { font-size: 2rem; color: var(--accent); }
+    .header-title h1 { font-size: 1.5rem; }
+    .header-title span { font-size: 0.9rem; background: #0369a1; padding: 3px 8px; border-radius: 4px; }
+    .header-title p { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 992px) {
+      .layout-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .webcam-box {
+      position: relative;
+      width: 100%;
+      height: 340px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .webcam-box video, .webcam-box canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+    .webcam-placeholder {
+      position: absolute;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 20px;
+    }
+    .webcam-placeholder i { font-size: 3rem; margin-bottom: 10px; display: block; }
+    
+    .crosshair {
+      position: absolute;
+      width: 230px;
+      height: 230px;
+      border: 2px dashed rgba(56, 189, 248, 0.6);
+      pointer-events: none;
+      border-radius: 12px;
+    }
+
+    /* 多類別即時機率長條圖列表 */
+    .prediction-bars {
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pred-row { width: 100%; }
+    .pred-info { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+    .pred-track { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+    .pred-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s ease; }
+
+    .nav-box {
+      background: #0f172a;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 15px;
+    }
+    .part-name { font-size: 1.8rem; font-weight: bold; margin: 10px 0; color: #fff; }
+    .nav-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    .stat-card {
+      background: #1e293b;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    .stat-card .label { font-size: 0.8rem; color: var(--text-muted); }
+    .stat-card .val { font-size: 1.4rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
+
+    .matrix-section { margin-top: 24px; }
+    .zone-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 15px;
+    }
+    @media (max-width: 768px) {
+      .zone-container { grid-template-columns: 1fr; }
+    }
+    .zone-col {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .zone-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 12px; display: block; color: var(--text-muted); }
+    .drawers-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .drawer-node {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 6px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .drawer-node:hover {
+      border-color: var(--accent);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .drawer-node .d-code { font-weight: bold; }
+    .drawer-node .d-item { font-size: 0.75rem; color: var(--text-muted); }
+
+    .drawer-node.active-guide {
+      background: var(--accent) !important;
+      color: #000 !important;
+      border-color: #fff !important;
+      box-shadow: 0 0 16px var(--accent);
+      animation: pulse 1s infinite alternate;
+    }
+    .drawer-node.active-guide .d-item { color: #000 !important; font-weight: bold; }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+
+    .log-list {
+      max-height: 160px;
+      overflow-y: auto;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+      color: var(--text-muted);
+    }
+    .log-item span:first-child { color: var(--text-main); font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <i class="fa-solid fa-microchip"></i>
+      <div>
+        <h1>智庫管家 <span>Teachable Machine AI</span></h1>
+        <p>東海高中 · 明星三缺一 ｜ 基於 AI 視覺之零件辨識與智能歸位系統</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="startBtn" onclick="initCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
+      <button class="btn btn-secondary" id="switchBtn" onclick="switchCamera()"><i class="fa-solid fa-arrows-rotate"></i> 切換鏡頭</button>
+      <button class="btn btn-secondary" onclick="openModelSettings()"><i class="fa-solid fa-gear"></i> 模型設定</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="layout-grid">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.9rem;">
+          <span id="camStatus">狀態：未開啟</span>
+          <span id="fpsCounter" style="color:var(--accent);">進度: 等待開啟</span>
+        </div>
+        <div class="webcam-box" id="webcam-box">
+          <div class="webcam-placeholder" id="placeholder">
+            <i class="fa-solid fa-camera-rotate"></i>
+            <p>點擊上方「開啟鏡頭檢測」載入雲端模型並進行即時辨識</p>
+          </div>
+          <div class="crosshair"></div>
+        </div>
+
+        <!-- 動態機率長條圖區塊 -->
+        <div class="prediction-bars" id="predBars">
+          <div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:10px;">
+            尚未載入模型類別
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 1.1rem; display: flex; justify-content: space-between;">
+          <span>AI 防呆歸位導航</span>
+          <span id="guideBadge" style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px;">STANDBY</span>
+        </h2>
+
+        <div class="nav-box">
+          <div style="color:var(--text-muted); font-size: 0.85rem;">辨識零件類別</div>
+          <div class="part-name" id="detectedName">等待放置零件...</div>
+          
+          <div class="nav-details">
+            <div class="stat-card">
+              <div class="label">目標抽屜格位</div>
+              <div class="val" id="targetDrawer">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">平均信心度</div>
+              <div class="val" id="targetConf">--%</div>
+            </div>
+          </div>
+          <p id="partSpec" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">
+            規格：請將零件置於取景框中央以獲得最佳推論精確度
+          </p>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <span style="font-size:0.9rem; font-weight:bold;">最近歸位流水帳</span>
+          <div class="log-list" id="logList">
+            <div class="log-item"><span>系統</span><span>待命紀錄中...</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card matrix-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3><i class="fa-solid fa-boxes-stacked"></i> 工場庫房零件抽屜座標矩陣 (A / B / C 區)</h3>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可自訂放置類別；辨識成功時對應抽屜會自動亮起。</p>
+        </div>
+        <button class="btn btn-secondary" onclick="resetDrawerMapping()" style="font-size:0.8rem; padding:5px 10px;">
+          <i class="fa-solid fa-rotate-left"></i> 重設所有抽屜
+        </button>
+      </div>
+
+      <div class="zone-container">
+        <div class="zone-col">
+          <span class="zone-title">A 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-A-01" onclick="editDrawer('A-01')"></div>
+            <div class="drawer-node" id="drawer-A-02" onclick="editDrawer('A-02')"></div>
+            <div class="drawer-node" id="drawer-A-03" onclick="editDrawer('A-03')"></div>
+            <div class="drawer-node" id="drawer-A-04" onclick="editDrawer('A-04')"></div>
+          </div>
+        </div>
+
+        <div class="zone-col">
+          <span class="zone-title">B 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-B-01" onclick="editDrawer('B-01')"></div>
+            <div class="drawer-node" id="drawer-B-02" onclick="editDrawer('B-02')"></div>
+            <div class="drawer-node" id="drawer-B-03" onclick="editDrawer('B-03')"></div>
+            <div class="drawer-node" id="drawer-B-04" onclick="editDrawer('B-04')"></div>
+          </div>
+        </div>
+
+        <div class="zone-col">
+          <span class="zone-title">C 區</span>
+          <div class="drawers-grid">
+            <div class="drawer-node" id="drawer-C-01" onclick="editDrawer('C-01')"></div>
+            <div class="drawer-node" id="drawer-C-02" onclick="editDrawer('C-02')"></div>
+            <div class="drawer-node" id="drawer-C-03" onclick="editDrawer('C-03')"></div>
+            <div class="drawer-node" id="drawer-C-04" onclick="editDrawer('C-04')"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // 預設模型分享連結
+    let MODEL_URL = "https://teachablemachine.withgoogle.com/models/6LGF_0plL/";
+
+    // 醒目色彩調色盤（確保每個類別都有獨立、高對比的顏色）
+    const PALETTE = [
+      "#22c55e", // 亮綠
+      "#ef4444", // 亮紅
+      "#38bdf8", // 亮青
+      "#f59e0b", // 琥珀黃
+      "#a855f7", // 紫色
+      "#ec4899", // 粉紅
+      "#14b8a6", // 藍綠
+      "#f97316"  // 橙色
+    ];
+    let classColorMap = {};
+
+    // 抽屜配置對應表 (預設值)
+    const DEFAULT_DRAWER_MAP = {
+      "A-01": "grb",
+      "A-02": "",
+      "A-03": "",
+      "A-04": "",
+      "B-01": "",
+      "B-02": "rrr",
+      "B-03": "",
+      "B-04": "",
+      "C-01": "",
+      "C-02": "",
+      "C-03": "",
+      "C-04": ""
+    };
+    let drawerMap = {};
+
+    // 讀取本地儲存的抽屜設定
+    function loadDrawerMapping() {
+      const saved = localStorage.getItem("zhiku_drawer_map");
+      if (saved) {
+        try {
+          drawerMap = JSON.parse(saved);
+        } catch (e) {
+          drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+        }
+      } else {
+        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+      }
+      renderDrawers();
+    }
+
+    // 儲存抽屜設定
+    function saveDrawerMapping() {
+      localStorage.setItem("zhiku_drawer_map", JSON.stringify(drawerMap));
+      renderDrawers();
+    }
+
+    // 渲染抽屜 UI
+    function renderDrawers() {
+      for (let code in drawerMap) {
+        const el = document.getElementById(`drawer-${code}`);
+        if (el) {
+          const item = drawerMap[code];
+          el.innerHTML = `
+            <span class="d-code">${code}</span>
+            <span class="d-item">${item ? item : '(空位)'}</span>
+          `;
+          if (item) {
+            el.style.borderColor = "rgba(56, 189, 248, 0.4)";
+          } else {
+            el.style.borderColor = "var(--border-color)";
+          }
+        }
+      }
+    }
+
+    // 點擊抽屜修改內容
+    function editDrawer(drawerCode) {
+      const current = drawerMap[drawerCode] || "";
+      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb，留白代表清空）：`, current);
+      if (input !== null) {
+        drawerMap[drawerCode] = input.trim();
+        saveDrawerMapping();
+      }
+    }
+
+    // 重設抽屜配置
+    function resetDrawerMapping() {
+      if (confirm("確定要將所有抽屜還原為預設配置嗎？")) {
+        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+        saveDrawerMapping();
+      }
+    }
+
+    // 反向搜尋類別在哪個抽屜
+    function findDrawerByClass(className) {
+      if (!className || className.toLowerCase() === "empty") return null;
+      for (let code in drawerMap) {
+        if (drawerMap[code].toLowerCase() === className.toLowerCase()) {
+          return code;
+        }
+      }
+      return null;
+    }
+
+    let model, webcam, maxPredictions;
+    let isPredicting = false;
+    let lastLoggedPart = null;
+
+    const SAMPLE_COUNT = 15;
+    const COOLDOWN_MS = 800;
+    let sampleBuffer = [];
+    let cooldownUntil = 0;
+    let currentFacingMode = "environment";
+
+    // 切換模型連結 (包含熱重載修正)
+    async function openModelSettings() {
+      const input = prompt("請輸入 Teachable Machine 模型分享網址：", MODEL_URL);
+      if (!input) return;
+
+      const newUrl = input.trim().endsWith('/') ? input.trim() : input.trim() + '/';
+      MODEL_URL = newUrl;
+
+      // 如果相機已經開啟，自動重新載入新模型
+      if (webcam) {
+        document.getElementById("camStatus").innerText = "狀態：重新載入新模型中...";
+        try {
+          await loadAIModel();
+          sampleBuffer = [];
+          document.getElementById("camStatus").innerText = "狀態：實時運算中";
+          alert("新模型載入成功！類別與顏色已同步更新。");
+        } catch (err) {
+          alert("新模型載入失敗！請檢查網址是否正確。");
+        }
+      } else {
+        alert(`模型網址已變更為：\n${MODEL_URL}\n點擊「開啟鏡頭檢測」即可使用新模型。`);
+      }
+    }
+
+    // 載入模型並自動配置動態顏色
+    async function loadAIModel() {
+      const modelURL = MODEL_URL + "model.json";
+      const metadataURL = MODEL_URL + "metadata.json";
+
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      // 為每個類別分配專屬色彩
+      classColorMap = {};
+      const container = document.getElementById("predBars");
+      container.innerHTML = "";
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        const color = (cName.toLowerCase() === "empty") ? "#94a3b8" : PALETTE[i % PALETTE.length];
+        classColorMap[cName] = color;
+
+        // 動態生成各類別的機率長條圖
+        const row = document.createElement("div");
+        row.className = "pred-row";
+        row.innerHTML = `
+          <div class="pred-info">
+            <span style="color:${color}; font-weight:600;">${cName}</span>
+            <span id="prob-val-${i}" style="color:${color}; font-weight:bold;">0%</span>
+          </div>
+          <div class="pred-track">
+            <div class="pred-fill" id="prob-bar-${i}" style="background:${color};"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      }
+    }
+
+    async function initCam() {
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入雲端模型中...';
+
+      try {
+        await loadAIModel();
+        await startWebcam();
+
+        document.getElementById("camStatus").innerText = "狀態：實時運算中";
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 檢測運作中';
+        isPredicting = true;
+      } catch (err) {
+        console.error(err);
+        alert("模型載入失敗！請確認網路是否正常，或檢查模型分享連結。");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
+      }
+    }
+
+    async function startWebcam() {
+      const isUser = currentFacingMode === "user";
+      webcam = new tmImage.Webcam(340, 340, isUser);
+      await webcam.setup({ facingMode: currentFacingMode });
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      document.getElementById("placeholder").style.display = "none";
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      box.appendChild(webcam.canvas);
+    }
+
+    async function switchCamera() {
+      if (!isPredicting) {
+        alert("請先點擊「開啟鏡頭檢測」！");
+        return;
+      }
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      if (webcam) webcam.stop();
+      await startWebcam();
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      if (!isPredicting || !model) return;
+
+      const now = performance.now();
+
+      if (now < cooldownUntil) {
+        const remaining = Math.ceil((cooldownUntil - now) / 100) / 10;
+        document.getElementById("fpsCounter").innerText = `鎖定顯示中 (${remaining}s)`;
+        return;
+      }
+
+      const prediction = await model.predict(webcam.canvas);
+      
+      const frameData = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        const p = prediction[i].probability;
+        const cName = prediction[i].className;
+        frameData[cName] = p;
+
+        // 即時更新長條圖百分比
+        const valEl = document.getElementById(`prob-val-${i}`);
+        const barEl = document.getElementById(`prob-bar-${i}`);
+        if (valEl && barEl) {
+          const pct = Math.round(p * 100);
+          valEl.innerText = `${pct}%`;
+          barEl.style.width = `${pct}%`;
+        }
+      }
+      sampleBuffer.push(frameData);
+
+      document.getElementById("fpsCounter").innerText = `AI 取樣分析中: ${sampleBuffer.length} / ${SAMPLE_COUNT}`;
+
+      if (sampleBuffer.length >= SAMPLE_COUNT) {
+        evaluateSamples();
+        sampleBuffer = [];                 
+        cooldownUntil = performance.now() + COOLDOWN_MS; 
+      }
+    }
+
+    function evaluateSamples() {
+      const classTotals = {};
+
+      sampleBuffer.forEach(frame => {
+        for (let className in frame) {
+          classTotals[className] = (classTotals[className] || 0) + frame[className];
+        }
+      });
+
+      let bestClass = "empty";
+      let highestAvgProb = 0;
+
+      for (let className in classTotals) {
+        const avgProb = classTotals[className] / SAMPLE_COUNT;
+        if (avgProb > highestAvgProb) {
+          highestAvgProb = avgProb;
+          bestClass = className;
+        }
+      }
+
+      updateNavigation(bestClass, highestAvgProb);
+    }
+
+    function updateNavigation(className, confidence) {
+      const color = classColorMap[className] || "var(--accent)";
+      const targetDrawer = findDrawerByClass(className);
+
+      const nameEl = document.getElementById("detectedName");
+      const drawerEl = document.getElementById("targetDrawer");
+      const confEl = document.getElementById("targetConf");
+      const specEl = document.getElementById("partSpec");
+      const badge = document.getElementById("guideBadge");
+
+      // 清除所有抽屜高亮
+      document.querySelectorAll(".drawer-node").forEach(node => {
+        node.classList.remove("active-guide");
+      });
+
+      // 淨空或低信心度狀態
+      if (className.toLowerCase() === "empty" || confidence < 0.70) {
+        nameEl.innerText = "等待放置零件...";
+        nameEl.style.color = "var(--text-muted)";
+        drawerEl.innerText = "--";
+        confEl.innerText = `${Math.round(confidence * 100)}%`;
+        specEl.innerText = "規格：請將零件置於取景框中央";
+        badge.innerText = "STANDBY";
+        badge.style.background = "#334155";
+        return;
+      }
+
+      // 辨識成功狀態
+      nameEl.innerText = className;
+      nameEl.style.color = color;
+      confEl.innerText = `${Math.round(confidence * 100)}%`;
+      badge.innerText = "LOCATED";
+      badge.style.background = "#059669";
+
+      if (targetDrawer) {
+        drawerEl.innerText = targetDrawer;
+        specEl.innerText = `規格：已對應至庫位 [${targetDrawer}]`;
+
+        const drawerNode = document.getElementById(`drawer-${targetDrawer}`);
+        if (drawerNode) {
+          drawerNode.classList.add("active-guide");
+        }
+
+        if (lastLoggedPart !== className && confidence > 0.85) {
+          addLog(className, targetDrawer);
+          lastLoggedPart = className;
+        }
+      } else {
+        drawerEl.innerText = "未分配";
+        specEl.innerText = "提示：此類別尚未指定抽屜，請在下方點擊任一抽屜進行綁定";
+      }
+    }
+
+    function addLog(name, drawer) {
+      const list = document.getElementById("logList");
+      const time = new Date().toLocaleTimeString();
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.innerHTML = `<span>${name}</span> <span>歸位至 [${drawer}] · ${time}</span>`;
+      list.prepend(item);
+    }
+
+    // 初始化載入抽屜設定
+    window.addEventListener("DOMContentLoaded", () => {
+      loadDrawerMapping();
+    });
+  </script>
+</body>
+</html>
