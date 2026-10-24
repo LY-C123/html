@@ -107,24 +107,19 @@
     
     .crosshair {
       position: absolute;
-      width: 230px;
-      height: 230px;
+      width: 350px;
+      height: 300px;
       border: 2px dashed rgba(56, 189, 248, 0.6);
       pointer-events: none;
       border-radius: 12px;
     }
 
-    /* 多類別即時機率長條圖列表 */
-    .prediction-bars {
-      margin-top: 15px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .pred-row { width: 100%; }
-    .pred-info { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
-    .pred-track { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
-    .pred-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s ease; }
+    /* 單一最高機率長條圖區塊 */
+    .prediction-bars { margin-top: 15px; }
+    .pred-row { margin-bottom: 8px; }
+    .pred-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; }
+    .pred-track { width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+    .pred-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.25s ease; }
 
     .nav-box {
       background: #0f172a;
@@ -258,10 +253,16 @@
           <div class="crosshair"></div>
         </div>
 
-        <!-- 動態機率長條圖區塊 -->
+        <!-- 僅顯示最高可能性類別的長條圖 -->
         <div class="prediction-bars" id="predBars">
-          <div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:10px;">
-            尚未載入模型類別
+          <div class="pred-row">
+            <div class="pred-info">
+              <span><b>最高可能性類別：</b><span id="topClassName">--</span></span>
+              <span id="topClassVal" style="font-weight: bold; color: var(--accent);">--%</span>
+            </div>
+            <div class="pred-track">
+              <div class="pred-fill" id="topClassBar"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -452,8 +453,9 @@
     let isPredicting = false;
     let lastLoggedPart = null;
 
-    const SAMPLE_COUNT = 15;
-    const COOLDOWN_MS = 800;
+    // 保留使用者調整的取樣數與冷卻時間
+    const SAMPLE_COUNT = 5;
+    const COOLDOWN_MS = 500;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     let currentFacingMode = "environment";
@@ -482,7 +484,7 @@
       }
     }
 
-    // 載入模型並自動配置動態顏色
+    // 載入模型並自動配置動態顏色字典
     async function loadAIModel() {
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
@@ -492,27 +494,9 @@
 
       // 為每個類別分配專屬色彩
       classColorMap = {};
-      const container = document.getElementById("predBars");
-      container.innerHTML = "";
-
       for (let i = 0; i < maxPredictions; i++) {
         const cName = model.getClassLabels()[i];
-        const color = (cName.toLowerCase() === "empty") ? "#94a3b8" : PALETTE[i % PALETTE.length];
-        classColorMap[cName] = color;
-
-        // 動態生成各類別的機率長條圖
-        const row = document.createElement("div");
-        row.className = "pred-row";
-        row.innerHTML = `
-          <div class="pred-info">
-            <span style="color:${color}; font-weight:600;">${cName}</span>
-            <span id="prob-val-${i}" style="color:${color}; font-weight:bold;">0%</span>
-          </div>
-          <div class="pred-track">
-            <div class="pred-fill" id="prob-bar-${i}" style="background:${color};"></div>
-          </div>
-        `;
-        container.appendChild(row);
+        classColorMap[cName] = (cName.toLowerCase() === "empty") ? "#94a3b8" : PALETTE[i % PALETTE.length];
       }
     }
 
@@ -581,18 +565,7 @@
       
       const frameData = {};
       for (let i = 0; i < maxPredictions; i++) {
-        const p = prediction[i].probability;
-        const cName = prediction[i].className;
-        frameData[cName] = p;
-
-        // 即時更新長條圖百分比
-        const valEl = document.getElementById(`prob-val-${i}`);
-        const barEl = document.getElementById(`prob-bar-${i}`);
-        if (valEl && barEl) {
-          const pct = Math.round(p * 100);
-          valEl.innerText = `${pct}%`;
-          barEl.style.width = `${pct}%`;
-        }
+        frameData[prediction[i].className] = prediction[i].probability;
       }
       sampleBuffer.push(frameData);
 
@@ -605,6 +578,7 @@
       }
     }
 
+    // 彙總分析多幀樣本，只取出最高機率者
     function evaluateSamples() {
       const classTotals = {};
 
@@ -624,6 +598,21 @@
           bestClass = className;
         }
       }
+
+      const percent = Math.round(highestAvgProb * 100);
+      const color = classColorMap[bestClass] || "var(--accent)";
+
+      // 只更新這一個最高項目的長條圖，其他低機率項目不出現
+      document.getElementById("topClassName").innerText = `${bestClass}`;
+      document.getElementById("topClassName").style.color = color;
+      
+      const valEl = document.getElementById("topClassVal");
+      valEl.innerText = `${percent}%`;
+      valEl.style.color = color;
+
+      const fillBar = document.getElementById("topClassBar");
+      fillBar.style.width = `${percent}%`;
+      fillBar.style.background = color;
 
       updateNavigation(bestClass, highestAvgProb);
     }
