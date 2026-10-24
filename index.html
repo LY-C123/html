@@ -63,6 +63,8 @@
     .btn:hover { background: var(--accent-hover); color: #fff; }
     .btn-secondary { background: #334155; color: #fff; }
     .btn-secondary:hover { background: #475569; }
+    .btn-warning { background: var(--warning); color: #000; }
+    .btn-warning:hover { background: #d97706; color: #fff; }
 
     .layout-grid {
       display: grid;
@@ -141,9 +143,13 @@
       padding: 12px;
       border-radius: 6px;
       border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
     }
     .stat-card .label { font-size: 0.8rem; color: var(--text-muted); }
-    .stat-card .val { font-size: 1.4rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
+    .stat-card .val { font-size: 1.3rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
 
     .matrix-section { margin-top: 24px; }
     .zone-container {
@@ -219,6 +225,44 @@
       color: var(--text-muted);
     }
     .log-item span:first-child { color: var(--text-main); font-weight: 500; }
+
+    /* 彈出抽屜選擇對話框樣式 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .modal-select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      margin: 15px 0 20px 0;
+      outline: none;
+    }
+    .modal-select:focus {
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -287,9 +331,16 @@
               <div class="val" id="targetConf">--%</div>
             </div>
           </div>
-          <p id="partSpec" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">
-            規格：請將零件置於取景框中央以獲得最佳推論精確度
-          </p>
+
+          <div style="margin-top: 14px;">
+            <p id="partSpec" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+              規格：請將零件置於取景框中央以獲得最佳推論精確度
+            </p>
+            <!-- 快速分配按鈕 (未綁定抽屜時動態出現) -->
+            <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; margin:10px auto 0 auto; font-size:0.85rem; padding:6px 14px;">
+              <i class="fa-solid fa-plus-circle"></i> 倉庫無此零件：加入倉庫格位
+            </button>
+          </div>
         </div>
 
         <div style="margin-top: 20px;">
@@ -305,7 +356,7 @@
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <div>
           <h3><i class="fa-solid fa-boxes-stacked"></i> 工場庫房零件抽屜座標矩陣 (A / B / C 區)</h3>
-          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可自訂放置類別；辨識成功時對應抽屜會自動亮起。</p>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可直接修改或清空；辨識成功時對應抽屜會自動亮起。</p>
         </div>
         <button class="btn btn-secondary" onclick="resetDrawerMapping()" style="font-size:0.8rem; padding:5px 10px;">
           <i class="fa-solid fa-rotate-left"></i> 重設所有抽屜
@@ -346,11 +397,34 @@
     </div>
   </main>
 
+  <!-- 彈出抽屜選擇對話框 (Modal) -->
+  <div class="modal-overlay" id="assignModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-box-archive" style="color:var(--accent);"></i>
+        選擇欲入庫的抽屜格位
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px;">
+        欲入庫零件：<b id="modalPartName" style="color:var(--warning); font-size:1rem;"></b>
+      </p>
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
+      <select class="modal-select" id="drawerSelect">
+        <!-- JS 動態生成選項 -->
+      </select>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
+        <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 預設模型分享連結
     let MODEL_URL = "https://teachablemachine.withgoogle.com/models/6LGF_0plL/";
 
-    // 醒目色彩調色盤（確保每個類別都有獨立、高對比的顏色）
+    // 醒目色彩調色盤
     const PALETTE = [
       "#22c55e", // 亮綠
       "#ef4444", // 亮紅
@@ -363,24 +437,23 @@
     ];
     let classColorMap = {};
 
-    // 抽屜配置對應表 (預設值)
+    // 抽屜配置對應表
+    const ALL_DRAWER_KEYS = [
+      "A-01", "A-02", "A-03", "A-04",
+      "B-01", "B-02", "B-03", "B-04",
+      "C-01", "C-02", "C-03", "C-04"
+    ];
+
     const DEFAULT_DRAWER_MAP = {
-      "A-01": "grb",
-      "A-02": "",
-      "A-03": "",
-      "A-04": "",
-      "B-01": "",
-      "B-02": "rrr",
-      "B-03": "",
-      "B-04": "",
-      "C-01": "",
-      "C-02": "",
-      "C-03": "",
-      "C-04": ""
+      "A-01": "grb", "A-02": "", "A-03": "", "A-04": "",
+      "B-01": "", "B-02": "rrr", "B-03": "", "B-04": "",
+      "C-01": "", "C-02": "", "C-03": "", "C-04": ""
     };
     let drawerMap = {};
 
-    // 讀取本地儲存的抽屜設定
+    // 當前等待入庫的零件名稱
+    let unassignedClassName = "";
+
     function loadDrawerMapping() {
       const saved = localStorage.getItem("zhiku_drawer_map");
       if (saved) {
@@ -395,18 +468,16 @@
       renderDrawers();
     }
 
-    // 儲存抽屜設定
     function saveDrawerMapping() {
       localStorage.setItem("zhiku_drawer_map", JSON.stringify(drawerMap));
       renderDrawers();
     }
 
-    // 渲染抽屜 UI
     function renderDrawers() {
-      for (let code in drawerMap) {
+      for (let code of ALL_DRAWER_KEYS) {
         const el = document.getElementById(`drawer-${code}`);
         if (el) {
-          const item = drawerMap[code];
+          const item = drawerMap[code] || "";
           el.innerHTML = `
             <span class="d-code">${code}</span>
             <span class="d-item">${item ? item : '(空位)'}</span>
@@ -420,7 +491,6 @@
       }
     }
 
-    // 點擊抽屜修改內容
     function editDrawer(drawerCode) {
       const current = drawerMap[drawerCode] || "";
       const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb，留白代表清空）：`, current);
@@ -430,7 +500,6 @@
       }
     }
 
-    // 重設抽屜配置
     function resetDrawerMapping() {
       if (confirm("確定要將所有抽屜還原為預設配置嗎？")) {
         drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
@@ -438,29 +507,92 @@
       }
     }
 
-    // 反向搜尋類別在哪個抽屜
     function findDrawerByClass(className) {
       if (!className || className.toLowerCase() === "empty") return null;
       for (let code in drawerMap) {
-        if (drawerMap[code].toLowerCase() === className.toLowerCase()) {
+        if (drawerMap[code] && drawerMap[code].toLowerCase() === className.toLowerCase()) {
           return code;
         }
       }
       return null;
     }
 
+    // ========== 彈出抽屜選擇清單功能 ==========
+    function openAssignModal() {
+      if (!unassignedClassName) return;
+
+      document.getElementById("modalPartName").innerText = unassignedClassName;
+      const select = document.getElementById("drawerSelect");
+      select.innerHTML = "";
+
+      ALL_DRAWER_KEYS.forEach(code => {
+        const opt = document.createElement("option");
+        opt.value = code;
+        const currentItem = drawerMap[code];
+        if (currentItem) {
+          opt.innerText = `${code} (目前放置: ${currentItem})`;
+        } else {
+          opt.innerText = `${code} (空位)`;
+        }
+        select.appendChild(opt);
+      });
+
+      document.getElementById("assignModal").style.display = "flex";
+    }
+
+    function closeAssignModal() {
+      document.getElementById("assignModal").style.display = "none";
+    }
+
+    function confirmDrawerAssign() {
+      const selectedDrawer = document.getElementById("drawerSelect").value;
+      if (!selectedDrawer || !unassignedClassName) return;
+
+      // 檢查若已有別的零件，提示覆蓋
+      const existing = drawerMap[selectedDrawer];
+      if (existing && existing !== unassignedClassName) {
+        if (!confirm(`抽屜 [${selectedDrawer}] 原本放置的是「${existing}」，確定要替換為「${unassignedClassName}」嗎？`)) {
+          return;
+        }
+      }
+
+      // 寫入對應表並儲存
+      drawerMap[selectedDrawer] = unassignedClassName;
+      saveDrawerMapping();
+
+      closeAssignModal();
+
+      // 隱藏快捷按鈕
+      document.getElementById("quickAssignBtn").style.display = "none";
+
+      // 立即刷新介面為已定位狀態
+      const drawerEl = document.getElementById("targetDrawer");
+      const specEl = document.getElementById("partSpec");
+      drawerEl.innerText = selectedDrawer;
+      drawerEl.style.color = "var(--accent)";
+      specEl.innerText = `規格：已成功入庫至 [${selectedDrawer}]，未來辨識將直接精確導航！`;
+
+      const drawerNode = document.getElementById(`drawer-${selectedDrawer}`);
+      if (drawerNode) {
+        drawerNode.classList.add("active-guide");
+      }
+
+      addLog(unassignedClassName, selectedDrawer);
+      alert(`設定成功！類別 [${unassignedClassName}] 已永久指定至抽屜 [${selectedDrawer}]。`);
+    }
+
+    // ========== AI 模型與相機辨識流程 ==========
     let model, webcam, maxPredictions;
     let isPredicting = false;
     let lastLoggedPart = null;
 
-    // 保留使用者調整的取樣數與冷卻時間
+    // 保留使用者調整的取樣與等待參數
     const SAMPLE_COUNT = 5;
     const COOLDOWN_MS = 500;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     let currentFacingMode = "environment";
 
-    // 切換模型連結 (包含熱重載修正)
     async function openModelSettings() {
       const input = prompt("請輸入 Teachable Machine 模型分享網址：", MODEL_URL);
       if (!input) return;
@@ -468,7 +600,6 @@
       const newUrl = input.trim().endsWith('/') ? input.trim() : input.trim() + '/';
       MODEL_URL = newUrl;
 
-      // 如果相機已經開啟，自動重新載入新模型
       if (webcam) {
         document.getElementById("camStatus").innerText = "狀態：重新載入新模型中...";
         try {
@@ -484,7 +615,6 @@
       }
     }
 
-    // 載入模型並自動配置動態顏色字典
     async function loadAIModel() {
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
@@ -492,7 +622,6 @@
       model = await tmImage.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
 
-      // 為每個類別分配專屬色彩
       classColorMap = {};
       for (let i = 0; i < maxPredictions; i++) {
         const cName = model.getClassLabels()[i];
@@ -578,7 +707,6 @@
       }
     }
 
-    // 彙總分析多幀樣本，只取出最高機率者
     function evaluateSamples() {
       const classTotals = {};
 
@@ -602,7 +730,7 @@
       const percent = Math.round(highestAvgProb * 100);
       const color = classColorMap[bestClass] || "var(--accent)";
 
-      // 只更新這一個最高項目的長條圖，其他低機率項目不出現
+      // 單一最高機率長條圖更新
       document.getElementById("topClassName").innerText = `${bestClass}`;
       document.getElementById("topClassName").style.color = color;
       
@@ -626,6 +754,7 @@
       const confEl = document.getElementById("targetConf");
       const specEl = document.getElementById("partSpec");
       const badge = document.getElementById("guideBadge");
+      const assignBtn = document.getElementById("quickAssignBtn");
 
       // 清除所有抽屜高亮
       document.querySelectorAll(".drawer-node").forEach(node => {
@@ -637,10 +766,13 @@
         nameEl.innerText = "等待放置零件...";
         nameEl.style.color = "var(--text-muted)";
         drawerEl.innerText = "--";
+        drawerEl.style.color = "var(--accent)";
         confEl.innerText = `${Math.round(confidence * 100)}%`;
-        specEl.innerText = "規格：請將零件置於取景框中央";
+        specEl.innerText = "規格：請將零件置於取景框中央以獲得最佳推論精確度";
         badge.innerText = "STANDBY";
         badge.style.background = "#334155";
+        assignBtn.style.display = "none";
+        unassignedClassName = "";
         return;
       }
 
@@ -652,8 +784,13 @@
       badge.style.background = "#059669";
 
       if (targetDrawer) {
+        // 情況 A：倉庫有對應位置
+        assignBtn.style.display = "none";
+        unassignedClassName = "";
+
         drawerEl.innerText = targetDrawer;
-        specEl.innerText = `規格：已對應至庫位 [${targetDrawer}]`;
+        drawerEl.style.color = "var(--accent)";
+        specEl.innerText = `規格：已成功對應至庫房 [${targetDrawer}] 格位`;
 
         const drawerNode = document.getElementById(`drawer-${targetDrawer}`);
         if (drawerNode) {
@@ -665,8 +802,12 @@
           lastLoggedPart = className;
         }
       } else {
-        drawerEl.innerText = "未分配";
-        specEl.innerText = "提示：此類別尚未指定抽屜，請在下方點擊任一抽屜進行綁定";
+        // 情況 B：倉庫沒有這個零件，顯示加入倉庫按鈕
+        unassignedClassName = className;
+        drawerEl.innerText = "未入庫";
+        drawerEl.style.color = "var(--warning)";
+        specEl.innerText = `提示：工廠庫房尚未收納「${className}」，請點擊下方按鈕選擇抽屜完成入庫。`;
+        assignBtn.style.display = "inline-flex";
       }
     }
 
@@ -679,7 +820,6 @@
       list.prepend(item);
     }
 
-    // 初始化載入抽屜設定
     window.addEventListener("DOMContentLoaded", () => {
       loadDrawerMapping();
     });
