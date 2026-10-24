@@ -226,7 +226,7 @@
     }
     .log-item span:first-child { color: var(--text-main); font-weight: 500; }
 
-    /* 彈出抽屜選擇對話框樣式 */
+    /* 通用彈跳視窗樣式 */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -263,6 +263,26 @@
     .modal-select:focus {
       border-color: var(--accent);
     }
+
+    /* 顏色設定清單項目 */
+    .color-setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #0f172a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .color-setting-item input[type="color"] {
+      border: none;
+      width: 40px;
+      height: 32px;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -278,6 +298,7 @@
     <div class="header-actions">
       <button class="btn" id="startBtn" onclick="initCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
       <button class="btn btn-secondary" id="switchBtn" onclick="switchCamera()"><i class="fa-solid fa-arrows-rotate"></i> 切換鏡頭</button>
+      <button class="btn btn-secondary" onclick="openColorSettings()"><i class="fa-solid fa-palette"></i> 標籤顏色</button>
       <button class="btn btn-secondary" onclick="openModelSettings()"><i class="fa-solid fa-gear"></i> 模型設定</button>
     </div>
   </header>
@@ -337,7 +358,7 @@
               規格：請將零件置於取景框中央以獲得最佳推論精確度
             </p>
             <!-- 快速分配按鈕 (未綁定抽屜時動態出現) -->
-            <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; margin:10px auto 0 auto; font-size:0.85rem; padding:6px 14px;">
+            <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; margin:12px auto 0 auto; font-size:0.9rem; padding:8px 16px;">
               <i class="fa-solid fa-plus-circle"></i> 倉庫無此零件：加入倉庫格位
             </button>
           </div>
@@ -405,17 +426,35 @@
         選擇欲入庫的抽屜格位
       </h3>
       <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px;">
-        欲入庫零件：<b id="modalPartName" style="color:var(--warning); font-size:1rem;"></b>
+        欲入庫零件：<b id="modalPartName" style="color:var(--warning); font-size:1.1rem;"></b>
       </p>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
-      <select class="modal-select" id="drawerSelect">
-        <!-- JS 動態生成選項 -->
-      </select>
+      <select class="modal-select" id="drawerSelect"></select>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
         <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈出標籤顏色自訂視窗 (Modal) -->
+  <div class="modal-overlay" id="colorModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-palette" style="color:var(--accent);"></i>
+        自訂類別顏色 (LED / 零件)
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px; margin-bottom:15px;">
+        點選右側色塊可自由指定各類別的長條圖與抽屜顏色：
+      </p>
+
+      <div id="colorSettingList" style="max-height:240px; overflow-y:auto; margin-bottom:15px;"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button class="btn btn-secondary" onclick="resetDefaultColors()" style="font-size:0.8rem; padding:6px 12px;">恢復預設配色</button>
+        <button class="btn" onclick="saveCustomColors()"><i class="fa-solid fa-floppy-disk"></i> 儲存顏色</button>
       </div>
     </div>
   </div>
@@ -493,7 +532,7 @@
 
     function editDrawer(drawerCode) {
       const current = drawerMap[drawerCode] || "";
-      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb，留白代表清空）：`, current);
+      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb、R、G，留白代表清空）：`, current);
       if (input !== null) {
         drawerMap[drawerCode] = input.trim();
         saveDrawerMapping();
@@ -515,6 +554,95 @@
         }
       }
       return null;
+    }
+
+    // ========== 自訂顏色設定功能 ==========
+    function loadSavedColors() {
+      const saved = localStorage.getItem("zhiku_custom_colors");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch(e) { return {}; }
+      }
+      return {};
+    }
+
+    function openColorSettings() {
+      if (!model) {
+        alert("請先點選「開啟鏡頭檢測」載入模型後，再設定標籤顏色！");
+        return;
+      }
+      const list = document.getElementById("colorSettingList");
+      list.innerHTML = "";
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue; // 忽略背景空位
+
+        const currentColor = classColorMap[cName] || "#38bdf8";
+        const item = document.createElement("div");
+        item.className = "color-setting-item";
+        item.innerHTML = `
+          <span style="font-weight:600; font-size:0.95rem;">${cName}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="color" id="picker-${cName}" value="${currentColor}">
+          </div>
+        `;
+        list.appendChild(item);
+      }
+      document.getElementById("colorModal").style.display = "flex";
+    }
+
+    function closeColorSettings() {
+      document.getElementById("colorModal").style.display = "none";
+    }
+
+    function saveCustomColors() {
+      const customColors = loadSavedColors();
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue;
+        const picker = document.getElementById(`picker-${cName}`);
+        if (picker) {
+          customColors[cName] = picker.value;
+          classColorMap[cName] = picker.value;
+        }
+      }
+      localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
+      closeColorSettings();
+      alert("顏色設定已更新並永久保存！");
+    }
+
+    function resetDefaultColors() {
+      if (confirm("確定要將所有顏色重設為系統預設配色嗎？")) {
+        localStorage.removeItem("zhiku_custom_colors");
+        applyModelColors();
+        openColorSettings(); // 刷新介面
+      }
+    }
+
+    function applyModelColors() {
+      const savedColors = loadSavedColors();
+      classColorMap = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") {
+          classColorMap[cName] = "#94a3b8";
+        } else if (savedColors[cName]) {
+          classColorMap[cName] = savedColors[cName];
+        } else {
+          // 根據名稱提供人性化初值 (如含有 R 給紅，含有 G 給綠)
+          if (/^r/i.test(cName)) {
+            classColorMap[cName] = "#ef4444";
+          } else if (/^g/i.test(cName)) {
+            classColorMap[cName] = "#22c55e";
+          } else if (/^b/i.test(cName)) {
+            classColorMap[cName] = "#38bdf8";
+          } else {
+            classColorMap[cName] = PALETTE[i % PALETTE.length];
+          }
+        }
+      }
     }
 
     // ========== 彈出抽屜選擇清單功能 ==========
@@ -548,7 +676,6 @@
       const selectedDrawer = document.getElementById("drawerSelect").value;
       if (!selectedDrawer || !unassignedClassName) return;
 
-      // 檢查若已有別的零件，提示覆蓋
       const existing = drawerMap[selectedDrawer];
       if (existing && existing !== unassignedClassName) {
         if (!confirm(`抽屜 [${selectedDrawer}] 原本放置的是「${existing}」，確定要替換為「${unassignedClassName}」嗎？`)) {
@@ -556,20 +683,16 @@
         }
       }
 
-      // 寫入對應表並儲存
       drawerMap[selectedDrawer] = unassignedClassName;
       saveDrawerMapping();
 
       closeAssignModal();
-
-      // 隱藏快捷按鈕
       document.getElementById("quickAssignBtn").style.display = "none";
 
-      // 立即刷新介面為已定位狀態
       const drawerEl = document.getElementById("targetDrawer");
       const specEl = document.getElementById("partSpec");
       drawerEl.innerText = selectedDrawer;
-      drawerEl.style.color = "var(--accent)";
+      drawerEl.style.color = classColorMap[unassignedClassName] || "var(--accent)";
       specEl.innerText = `規格：已成功入庫至 [${selectedDrawer}]，未來辨識將直接精確導航！`;
 
       const drawerNode = document.getElementById(`drawer-${selectedDrawer}`);
@@ -622,11 +745,8 @@
       model = await tmImage.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
 
-      classColorMap = {};
-      for (let i = 0; i < maxPredictions; i++) {
-        const cName = model.getClassLabels()[i];
-        classColorMap[cName] = (cName.toLowerCase() === "empty") ? "#94a3b8" : PALETTE[i % PALETTE.length];
-      }
+      // 套用顏色
+      applyModelColors();
     }
 
     async function initCam() {
@@ -761,8 +881,8 @@
         node.classList.remove("active-guide");
       });
 
-      // 淨空或低信心度狀態
-      if (className.toLowerCase() === "empty" || confidence < 0.70) {
+      // 1. 純背景狀態 (只有在模型明確判定為 empty 且非零件時)
+      if (className.toLowerCase() === "empty") {
         nameEl.innerText = "等待放置零件...";
         nameEl.style.color = "var(--text-muted)";
         drawerEl.innerText = "--";
@@ -776,7 +896,7 @@
         return;
       }
 
-      // 辨識成功狀態
+      // 2. 有辨識出零件類別 (無論信心度高低)
       nameEl.innerText = className;
       nameEl.style.color = color;
       confEl.innerText = `${Math.round(confidence * 100)}%`;
@@ -784,17 +904,18 @@
       badge.style.background = "#059669";
 
       if (targetDrawer) {
-        // 情況 A：倉庫有對應位置
+        // 情況 A：倉庫內已有此抽屜位置
         assignBtn.style.display = "none";
         unassignedClassName = "";
 
         drawerEl.innerText = targetDrawer;
-        drawerEl.style.color = "var(--accent)";
+        drawerEl.style.color = color;
         specEl.innerText = `規格：已成功對應至庫房 [${targetDrawer}] 格位`;
 
         const drawerNode = document.getElementById(`drawer-${targetDrawer}`);
         if (drawerNode) {
           drawerNode.classList.add("active-guide");
+          drawerNode.style.setProperty("--accent", color);
         }
 
         if (lastLoggedPart !== className && confidence > 0.85) {
@@ -802,7 +923,7 @@
           lastLoggedPart = className;
         }
       } else {
-        // 情況 B：倉庫沒有這個零件，顯示加入倉庫按鈕
+        // 情況 B：倉庫沒有這個零件，立即顯示加入倉庫按鈕
         unassignedClassName = className;
         drawerEl.innerText = "未入庫";
         drawerEl.style.color = "var(--warning)";
