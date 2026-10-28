@@ -532,7 +532,7 @@
 
     function editDrawer(drawerCode) {
       const current = drawerMap[drawerCode] || "";
-      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb、R、G，留白代表清空）：`, current);
+      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 電阻、LED、R、G，留白代表清空）：`, current);
       if (input !== null) {
         drawerMap[drawerCode] = input.trim();
         saveDrawerMapping();
