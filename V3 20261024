@@ -291,7 +291,7 @@
     <div class="header-title">
       <i class="fa-solid fa-microchip"></i>
       <div>
-        <h1>[V2]智庫管家 <span>Teachable Machine AI</span></h1>
+        <h1>智庫管家 <span>Teachable Machine AI</span></h1>
         <p>東海高中 · 明星三缺一 ｜ 基於 AI 視覺之零件辨識與智能歸位系統</p>
       </div>
     </div>
@@ -461,7 +461,7 @@
 
   <script>
     // 預設模型分享連結
-    let MODEL_URL = "https://teachablemachine.withgoogle.com/models/6LGF_0plL/";
+    let MODEL_URL = "https://teachablemachine.withgoogle.com/models/CFJVO9lUR/";
 
     // 醒目色彩調色盤
     const PALETTE = [
@@ -484,8 +484,8 @@
     ];
 
     const DEFAULT_DRAWER_MAP = {
-      "A-01": "grb", "A-02": "", "A-03": "", "A-04": "",
-      "B-01": "", "B-02": "rrr", "B-03": "", "B-04": "",
+      "A-01": "LED R", "A-02": "", "A-03": "", "A-04": "",
+      "B-01": "", "B-02": "LED G", "B-03": "", "B-04": "",
       "C-01": "", "C-02": "", "C-03": "", "C-04": ""
     };
     let drawerMap = {};
@@ -532,7 +532,7 @@
 
     function editDrawer(drawerCode) {
       const current = drawerMap[drawerCode] || "";
-      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 rrr、grb、R、G，留白代表清空）：`, current);
+      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 電阻、LED、R、G，留白代表清空）：`, current);
       if (input !== null) {
         drawerMap[drawerCode] = input.trim();
         saveDrawerMapping();
@@ -710,8 +710,8 @@
     let lastLoggedPart = null;
 
     // 保留使用者調整的取樣與等待參數
-    const SAMPLE_COUNT = 5;
-    const COOLDOWN_MS = 500;
+    const SAMPLE_COUNT = 15;
+    const COOLDOWN_MS = 800;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     let currentFacingMode = "environment";
