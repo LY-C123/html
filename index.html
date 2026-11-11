@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智庫管家 - Teachable Machine AI 零件辨識與智能歸位系統</title>
+  <title>智庫管家 - 電子零件管理系統 (Teachable Machine AI)</title>
   
   <!-- TensorFlow.js 與 Teachable Machine Image 函式庫 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
@@ -65,10 +65,12 @@
     .btn-secondary:hover { background: #475569; }
     .btn-warning { background: var(--warning); color: #000; }
     .btn-warning:hover { background: #d97706; color: #fff; }
-    .btn-danger {background: var(--danger); color: #fff;}
-    .btndanger:hover {background: #dc2626;}
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
     .btn-voice { background: #6366f1; color: #fff; }
     .btn-voice:hover { background: #4f46e5; }
+    .btn-stock { background: #059669; color: #fff; }
+    .btn-stock:hover { background: #047857; }
 
     .layout-grid {
       display: grid;
@@ -138,13 +140,13 @@
     .part-name { font-size: 1.8rem; font-weight: bold; margin: 10px 0; color: #fff; }
     .nav-details {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
       margin-top: 15px;
     }
     .stat-card {
       background: #1e293b;
-      padding: 12px;
+      padding: 10px;
       border-radius: 6px;
       border: 1px solid var(--border-color);
       display: flex;
@@ -152,10 +154,10 @@
       justify-content: center;
       align-items: center;
     }
-    .stat-card .label { font-size: 0.8rem; color: var(--text-muted); }
-    .stat-card .val { font-size: 1.3rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
+    .stat-card .label { font-size: 0.75rem; color: var(--text-muted); }
+    .stat-card .val { font-size: 1.2rem; font-weight: bold; margin-top: 4px; color: var(--accent); }
 
-    /* 按鈕容器：自動依據入庫狀態居中垂直排列 */
+    /* 按鈕容器：自動依據入庫狀態垂直排列 */
     .action-button-group {
       display: flex;
       flex-direction: column;
@@ -191,7 +193,7 @@
       background: #0f172a;
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 10px 6px;
+      padding: 8px 6px;
       text-align: center;
       font-size: 0.85rem;
       font-weight: 600;
@@ -201,7 +203,8 @@
       transition: all 0.2s;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
+      position: relative;
     }
     .drawer-node:hover {
       border-color: var(--accent);
@@ -210,6 +213,15 @@
     }
     .drawer-node .d-code { font-weight: bold; }
     .drawer-node .d-item { font-size: 0.75rem; color: var(--text-muted); }
+    .drawer-node .d-qty {
+      font-size: 0.7rem;
+      background: #334155;
+      color: #38bdf8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-top: 2px;
+      display: inline-block;
+    }
 
     .drawer-node.active-guide {
       background: var(--accent) !important;
@@ -218,7 +230,11 @@
       box-shadow: 0 0 16px var(--accent);
       animation: pulse 1s infinite alternate;
     }
-    .drawer-node.active-guide .d-item { color: #000 !important; font-weight: bold; }
+    .drawer-node.active-guide .d-item, .drawer-node.active-guide .d-qty {
+      color: #000 !important;
+      background: rgba(255,255,255,0.4) !important;
+      font-weight: bold;
+    }
 
     @keyframes pulse {
       from { transform: scale(1); }
@@ -263,7 +279,7 @@
       max-width: 440px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
-    .modal-select {
+    .modal-input, .modal-select {
       width: 100%;
       padding: 10px 14px;
       background: #0f172a;
@@ -271,14 +287,20 @@
       border: 1px solid var(--border-color);
       border-radius: 6px;
       font-size: 1rem;
-      margin: 15px 0 20px 0;
+      margin: 10px 0 16px 0;
       outline: none;
     }
-    .modal-select:focus {
+    .modal-input:focus, .modal-select:focus {
       border-color: var(--accent);
     }
 
-    /* 顏色設定清單項目 */
+    .quick-qty-controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      justify-content: center;
+    }
+
     .color-setting-item {
       display: flex;
       justify-content: space-between;
@@ -305,7 +327,7 @@
     <div class="header-title">
       <i class="fa-solid fa-microchip"></i>
       <div>
-        <h1>智庫管家 <span>Teachable Machine AI</span></h1>
+        <h1>智庫管家 <span>電子零件管理系統</span></h1>
         <p>東海高中 · 明星三缺一 ｜ 基於 AI 視覺之零件辨識與智能歸位系統</p>
       </div>
     </div>
@@ -358,8 +380,12 @@
           
           <div class="nav-details">
             <div class="stat-card">
-              <div class="label">目標抽屜格位</div>
+              <div class="label">目標抽屜</div>
               <div class="val" id="targetDrawer">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">當前庫存</div>
+              <div class="val" id="targetQty">--</div>
             </div>
             <div class="stat-card">
               <div class="label">平均信心度</div>
@@ -372,14 +398,19 @@
               規格：請將零件置於取景框中央以獲得最佳推論精確度
             </p>
             
-            <!-- 按鈕容器：自動依據入庫狀態居中排列 -->
+            <!-- 按鈕容器：自動依據入庫狀態排列 -->
             <div class="action-button-group" id="actionBtnGroup">
               <!-- 加入倉庫按鈕 (未入庫時出現) -->
               <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; font-size:0.9rem; padding:8px 16px;">
                 <i class="fa-solid fa-plus-circle"></i> 倉庫無此零件：加入倉庫格位
               </button>
 
-              <!-- 語音播報按鈕 (未入庫時排在加入按鈕下方，已入庫時獨自居中) -->
+              <!-- 手動修改庫存按鈕 (已入庫時出現) -->
+              <button class="btn btn-stock" id="stockAdjustBtn" onclick="openStockModalForCurrent()" style="display:none; font-size:0.85rem; padding:7px 16px;">
+                <i class="fa-solid fa-boxes-packing"></i> 調整此零件庫存
+              </button>
+
+              <!-- 語音播報按鈕 -->
               <button class="btn btn-voice" id="voiceBtn" onclick="speakCurrentResult()" style="display:none; font-size:0.85rem; padding:7px 16px;">
                 <i class="fa-solid fa-volume-high"></i> 語音播報導航
               </button>
@@ -388,7 +419,7 @@
         </div>
 
         <div style="margin-top: 20px;">
-          <span style="font-size:0.9rem; font-weight:bold;">最近歸位流水帳</span>
+          <span style="font-size:0.9rem; font-weight:bold;">最近歸位與異動流水帳</span>
           <div class="log-list" id="logList">
             <div class="log-item"><span>系統</span><span>待命紀錄中...</span></div>
           </div>
@@ -400,7 +431,7 @@
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <div>
           <h3><i class="fa-solid fa-boxes-stacked"></i> 工場庫房零件抽屜座標矩陣 (A / B / C 區)</h3>
-          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可直接修改或清空；辨識成功時對應抽屜會自動亮起。</p>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">點擊任何抽屜可直接修改名稱或庫存數量；辨識成功時對應抽屜會自動亮起。</p>
         </div>
         <button class="btn btn-secondary" onclick="resetDrawerMapping()" style="font-size:0.8rem; padding:5px 10px;">
           <i class="fa-solid fa-rotate-left"></i> 重設所有抽屜
@@ -411,37 +442,37 @@
         <div class="zone-col">
           <span class="zone-title">A 區</span>
           <div class="drawers-grid">
-            <div class="drawer-node" id="drawer-A-01" onclick="editDrawer('A-01')"></div>
-            <div class="drawer-node" id="drawer-A-02" onclick="editDrawer('A-02')"></div>
-            <div class="drawer-node" id="drawer-A-03" onclick="editDrawer('A-03')"></div>
-            <div class="drawer-node" id="drawer-A-04" onclick="editDrawer('A-04')"></div>
+            <div class="drawer-node" id="drawer-A-01" onclick="openDrawerEditModal('A-01')"></div>
+            <div class="drawer-node" id="drawer-A-02" onclick="openDrawerEditModal('A-02')"></div>
+            <div class="drawer-node" id="drawer-A-03" onclick="openDrawerEditModal('A-03')"></div>
+            <div class="drawer-node" id="drawer-A-04" onclick="openDrawerEditModal('A-04')"></div>
           </div>
         </div>
 
         <div class="zone-col">
           <span class="zone-title">B 區</span>
           <div class="drawers-grid">
-            <div class="drawer-node" id="drawer-B-01" onclick="editDrawer('B-01')"></div>
-            <div class="drawer-node" id="drawer-B-02" onclick="editDrawer('B-02')"></div>
-            <div class="drawer-node" id="drawer-B-03" onclick="editDrawer('B-03')"></div>
-            <div class="drawer-node" id="drawer-B-04" onclick="editDrawer('B-04')"></div>
+            <div class="drawer-node" id="drawer-B-01" onclick="openDrawerEditModal('B-01')"></div>
+            <div class="drawer-node" id="drawer-B-02" onclick="openDrawerEditModal('B-02')"></div>
+            <div class="drawer-node" id="drawer-B-03" onclick="openDrawerEditModal('B-03')"></div>
+            <div class="drawer-node" id="drawer-B-04" onclick="openDrawerEditModal('B-04')"></div>
           </div>
         </div>
 
         <div class="zone-col">
           <span class="zone-title">C 區</span>
           <div class="drawers-grid">
-            <div class="drawer-node" id="drawer-C-01" onclick="editDrawer('C-01')"></div>
-            <div class="drawer-node" id="drawer-C-02" onclick="editDrawer('C-02')"></div>
-            <div class="drawer-node" id="drawer-C-03" onclick="editDrawer('C-03')"></div>
-            <div class="drawer-node" id="drawer-C-04" onclick="editDrawer('C-04')"></div>
+            <div class="drawer-node" id="drawer-C-01" onclick="openDrawerEditModal('C-01')"></div>
+            <div class="drawer-node" id="drawer-C-02" onclick="openDrawerEditModal('C-02')"></div>
+            <div class="drawer-node" id="drawer-C-03" onclick="openDrawerEditModal('C-03')"></div>
+            <div class="drawer-node" id="drawer-C-04" onclick="openDrawerEditModal('C-04')"></div>
           </div>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- 彈出抽屜選擇對話框 (Modal) -->
+  <!-- 彈窗 1：加入倉庫抽屜 (Modal) -->
   <div class="modal-overlay" id="assignModal">
     <div class="modal-content">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
@@ -455,6 +486,9 @@
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
       <select class="modal-select" id="drawerSelect"></select>
 
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block;">初始庫存數量 (pcs)：</label>
+      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0">
+
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
         <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
@@ -462,7 +496,37 @@
     </div>
   </div>
 
-  <!-- 彈出標籤顏色自訂視窗 (Modal) -->
+  <!-- 彈窗 2：手動修改抽屜零件與庫存 (Modal) -->
+  <div class="modal-overlay" id="drawerEditModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-pen-to-square" style="color:var(--accent);"></i>
+        修改抽屜格位資訊：<span id="editModalDrawerId" style="color:var(--accent);"></span>
+      </h3>
+      
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">存放零件名稱 (留白代表清空)：</label>
+      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻">
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block;">庫存數量 (pcs)：</label>
+      <div class="quick-qty-controls">
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
+      </div>
+      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+        <button class="btn btn-danger" onclick="clearCurrentDrawer()" style="font-size:0.85rem;"><i class="fa-solid fa-trash"></i> 清空此格</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="closeDrawerEditModal()">取消</button>
+          <button class="btn" onclick="saveDrawerEdit()"><i class="fa-solid fa-floppy-disk"></i> 儲存變更</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈窗 3：自訂標籤顏色視窗 (Modal) -->
   <div class="modal-overlay" id="colorModal">
     <div class="modal-content">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
@@ -488,30 +552,35 @@
 
     // 醒目色彩調色盤
     const PALETTE = [
-      "#22c55e", // 亮綠
-      "#ef4444", // 亮紅
-      "#38bdf8", // 亮青
-      "#f59e0b", // 琥珀黃
-      "#a855f7", // 紫色
-      "#ec4899", // 粉紅
-      "#14b8a6", // 藍綠
-      "#f97316"  // 橙色
+      "#22c55e", "#ef4444", "#38bdf8", "#f59e0b",
+      "#a855f7", "#ec4899", "#14b8a6", "#f97316"
     ];
     let classColorMap = {};
 
-    // 抽屜配置對應表
+    // 抽屜配置與庫存對應表
     const ALL_DRAWER_KEYS = [
       "A-01", "A-02", "A-03", "A-04",
       "B-01", "B-02", "B-03", "B-04",
       "C-01", "C-02", "C-03", "C-04"
     ];
 
-    const DEFAULT_DRAWER_MAP = {
-      "A-01": "LED R", "A-02": "", "A-03": "", "A-04": "",
-      "B-01": "", "B-02": "LED G", "B-03": "", "B-04": "",
-      "C-01": "", "C-02": "", "C-03": "", "C-04": ""
+    // 預設結構包含 item (品名) 與 qty (庫存數量)
+    const DEFAULT_DRAWER_DATA = {
+      "A-01": { item: "LED R", qty: 25 },
+      "A-02": { item: "", qty: 0 },
+      "A-03": { item: "", qty: 0 },
+      "A-04": { item: "", qty: 0 },
+      "B-01": { item: "", qty: 0 },
+      "B-02": { item: "LED G", qty: 30 },
+      "B-03": { item: "", qty: 0 },
+      "B-04": { item: "", qty: 0 },
+      "C-01": { item: "", qty: 0 },
+      "C-02": { item: "", qty: 0 },
+      "C-03": { item: "", qty: 0 },
+      "C-04": { item: "", qty: 0 }
     };
-    let drawerMap = {};
+
+    let drawerData = {};
 
     // 當前辨識結果追蹤狀態
     let currentIdentifiedPart = "";
@@ -519,21 +588,38 @@
     let unassignedClassName = "";
 
     function loadDrawerMapping() {
-      const saved = localStorage.getItem("zhiku_drawer_map");
+      const saved = localStorage.getItem("zhiku_drawer_data_v2");
       if (saved) {
         try {
-          drawerMap = JSON.parse(saved);
+          drawerData = JSON.parse(saved);
         } catch (e) {
-          drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+          drawerData = JSON.parse(JSON.stringify(DEFAULT_DRAWER_DATA));
         }
       } else {
-        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+        // 向下相容舊版單一字串格式
+        const oldSaved = localStorage.getItem("zhiku_drawer_map");
+        if (oldSaved) {
+          try {
+            const oldMap = JSON.parse(oldSaved);
+            drawerData = JSON.parse(JSON.stringify(DEFAULT_DRAWER_DATA));
+            for (let k in oldMap) {
+              if (drawerData[k]) {
+                drawerData[k].item = oldMap[k] || "";
+                drawerData[k].qty = oldMap[k] ? 15 : 0;
+              }
+            }
+          } catch(e) {
+            drawerData = JSON.parse(JSON.stringify(DEFAULT_DRAWER_DATA));
+          }
+        } else {
+          drawerData = JSON.parse(JSON.stringify(DEFAULT_DRAWER_DATA));
+        }
       }
       renderDrawers();
     }
 
     function saveDrawerMapping() {
-      localStorage.setItem("zhiku_drawer_map", JSON.stringify(drawerMap));
+      localStorage.setItem("zhiku_drawer_data_v2", JSON.stringify(drawerData));
       renderDrawers();
     }
 
@@ -541,12 +627,16 @@
       for (let code of ALL_DRAWER_KEYS) {
         const el = document.getElementById(`drawer-${code}`);
         if (el) {
-          const item = drawerMap[code] || "";
+          const node = drawerData[code] || { item: "", qty: 0 };
+          const hasItem = Boolean(node.item && node.item.trim());
+          
           el.innerHTML = `
             <span class="d-code">${code}</span>
-            <span class="d-item">${item ? item : '(空位)'}</span>
+            <span class="d-item">${hasItem ? node.item : '(空位)'}</span>
+            ${hasItem ? `<span class="d-qty"><i class="fa-solid fa-boxes-stacked"></i> ${node.qty} pcs</span>` : ''}
           `;
-          if (item) {
+
+          if (hasItem) {
             el.style.borderColor = "rgba(56, 189, 248, 0.4)";
           } else {
             el.style.borderColor = "var(--border-color)";
@@ -555,53 +645,114 @@
       }
     }
 
-    function editDrawer(drawerCode) {
-      const current = drawerMap[drawerCode] || "";
-      const input = prompt(`【修改抽屜 ${drawerCode}】\n請輸入此格要存放的模型類別名稱（例如 電阻、LED、R、G，留白代表清空）：`, current);
-      if (input !== null) {
-        drawerMap[drawerCode] = input.trim();
-        saveDrawerMapping();
-      }
-    }
-
     function resetDrawerMapping() {
-      if (confirm("確定要將所有抽屜還原為預設配置嗎？")) {
-        drawerMap = Object.assign({}, DEFAULT_DRAWER_MAP);
+      if (confirm("確定要將所有抽屜與庫存還原為預設配置嗎？")) {
+        drawerData = JSON.parse(JSON.stringify(DEFAULT_DRAWER_DATA));
         saveDrawerMapping();
       }
     }
 
     function findDrawerByClass(className) {
       if (!className || className.toLowerCase() === "empty") return null;
-      for (let code in drawerMap) {
-        if (drawerMap[code] && drawerMap[code].toLowerCase() === className.toLowerCase()) {
+      for (let code in drawerData) {
+        if (drawerData[code] && drawerData[code].item && drawerData[code].item.toLowerCase() === className.toLowerCase()) {
           return code;
         }
       }
       return null;
     }
 
-    // ========== 語音播報功能 (Web Speech API) ==========
+    // ========== 手動修改抽屜與庫存彈窗邏輯 ==========
+    let activeEditDrawerCode = "";
+
+    function openDrawerEditModal(drawerCode) {
+      activeEditDrawerCode = drawerCode;
+      const data = drawerData[drawerCode] || { item: "", qty: 0 };
+
+      document.getElementById("editModalDrawerId").innerText = drawerCode;
+      document.getElementById("editItemNameInput").value = data.item || "";
+      document.getElementById("editItemQtyInput").value = data.qty || 0;
+
+      document.getElementById("drawerEditModal").style.display = "flex";
+    }
+
+    function closeDrawerEditModal() {
+      document.getElementById("drawerEditModal").style.display = "none";
+      activeEditDrawerCode = "";
+    }
+
+    function quickAdjustModalQty(delta) {
+      const input = document.getElementById("editItemQtyInput");
+      let val = parseInt(input.value, 10) || 0;
+      val = Math.max(0, val + delta);
+      input.value = val;
+    }
+
+    function saveDrawerEdit() {
+      if (!activeEditDrawerCode) return;
+      const name = document.getElementById("editItemNameInput").value.trim();
+      const qty = Math.max(0, parseInt(document.getElementById("editItemQtyInput").value, 10) || 0);
+
+      drawerData[activeEditDrawerCode] = { item: name, qty: qty };
+      saveDrawerMapping();
+      addLog(name ? name : `抽屜 ${activeEditDrawerCode}`, `手動更新庫存為 ${qty} pcs`);
+      
+      // 若當前正導航此抽屜，同步更新導航卡片數量
+      if (currentIdentifiedDrawer === activeEditDrawerCode) {
+        document.getElementById("targetQty").innerText = `${qty} pcs`;
+      }
+
+      closeDrawerEditModal();
+    }
+
+    function clearCurrentDrawer() {
+      if (!activeEditDrawerCode) return;
+      if (confirm(`確定要清空抽屜 [${activeEditDrawerCode}] 嗎？`)) {
+        drawerData[activeEditDrawerCode] = { item: "", qty: 0 };
+        saveDrawerMapping();
+        addLog(`抽屜 ${activeEditDrawerCode}`, `已清空格位`);
+        closeDrawerEditModal();
+      }
+    }
+
+    function openStockModalForCurrent() {
+      if (currentIdentifiedDrawer) {
+        openDrawerEditModal(currentIdentifiedDrawer);
+      }
+    }
+
+    // ========== 語音播報功能 (逐字發音) ==========
+    function formatForSpeech(text) {
+      if (!text) return "";
+      let formatted = text.replace(/LED/gi, "L E D");
+      formatted = formatted.replace(/([A-Z])(?=[A-Z])/g, '$1 ');
+      return formatted;
+    }
+
     function speakCurrentResult() {
       if (!('speechSynthesis' in window)) {
         alert("很抱歉，您的瀏覽器不支援語音合成功能！");
         return;
       }
 
-      window.speechSynthesis.cancel(); // 停止先前的發音
+      window.speechSynthesis.cancel();
       let text = "";
 
+      const speechPart = formatForSpeech(currentIdentifiedPart);
+      const speechDrawer = formatForSpeech(currentIdentifiedDrawer);
+
       if (currentIdentifiedDrawer) {
-        text = `辨識為 ${currentIdentifiedPart}，請放置於抽屜 ${currentIdentifiedDrawer}`;
+        const qty = drawerData[currentIdentifiedDrawer] ? drawerData[currentIdentifiedDrawer].qty : 0;
+        text = `辨識為 ${speechPart}，請放置於抽屜 ${speechDrawer}，目前庫存 ${qty} 個`;
       } else if (currentIdentifiedPart) {
-        text = `辨識為 ${currentIdentifiedPart}，目前庫房尚未收納，請點擊上方按鈕分配抽屜`;
+        text = `辨識為 ${speechPart}，目前庫房尚未收納，請點擊上方按鈕分配抽屜`;
       } else {
         text = "目前取景框中無零件。";
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "zh-TW";
-      utterance.rate = 1.0;
+      utterance.rate = 0.9;
       utterance.pitch = 1.0;
       window.speechSynthesis.speak(utterance);
     }
@@ -610,9 +761,7 @@
     function loadSavedColors() {
       const saved = localStorage.getItem("zhiku_custom_colors");
       if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch(e) { return {}; }
+        try { return JSON.parse(saved); } catch(e) { return {}; }
       }
       return {};
     }
@@ -694,7 +843,7 @@
       }
     }
 
-    // ========== 彈出抽屜選擇清單功能 ==========
+    // ========== 未入庫分配抽屜 (Modal) ==========
     function openAssignModal() {
       if (!unassignedClassName) return;
 
@@ -705,9 +854,9 @@
       ALL_DRAWER_KEYS.forEach(code => {
         const opt = document.createElement("option");
         opt.value = code;
-        const currentItem = drawerMap[code];
-        if (currentItem) {
-          opt.innerText = `${code} (目前放置: ${currentItem})`;
+        const currentData = drawerData[code];
+        if (currentData && currentData.item) {
+          opt.innerText = `${code} (現有: ${currentData.item} · ${currentData.qty} pcs)`;
         } else {
           opt.innerText = `${code} (空位)`;
         }
@@ -723,50 +872,120 @@
 
     function confirmDrawerAssign() {
       const selectedDrawer = document.getElementById("drawerSelect").value;
+      const initialQty = Math.max(0, parseInt(document.getElementById("initialStockInput").value, 10) || 0);
       if (!selectedDrawer || !unassignedClassName) return;
 
-      const existing = drawerMap[selectedDrawer];
-      if (existing && existing !== unassignedClassName) {
-        if (!confirm(`抽屜 [${selectedDrawer}] 原本放置的是「${existing}」，確定要替換為「${unassignedClassName}」嗎？`)) {
+      const existing = drawerData[selectedDrawer];
+      if (existing && existing.item && existing.item !== unassignedClassName) {
+        if (!confirm(`抽屜 [${selectedDrawer}] 原本放置的是「${existing.item}」，確定要替換為「${unassignedClassName}」嗎？`)) {
           return;
         }
       }
 
-      drawerMap[selectedDrawer] = unassignedClassName;
+      drawerData[selectedDrawer] = { item: unassignedClassName, qty: initialQty };
       saveDrawerMapping();
 
       closeAssignModal();
-
-      // 隱藏加入按鈕，語音按鈕回到正中央
       document.getElementById("quickAssignBtn").style.display = "none";
+      document.getElementById("stockAdjustBtn").style.display = "inline-flex";
+
       currentIdentifiedDrawer = selectedDrawer;
 
       const drawerEl = document.getElementById("targetDrawer");
+      const qtyEl = document.getElementById("targetQty");
       const specEl = document.getElementById("partSpec");
+
       drawerEl.innerText = selectedDrawer;
       drawerEl.style.color = classColorMap[unassignedClassName] || "var(--accent)";
-      specEl.innerText = `規格：已成功入庫至 [${selectedDrawer}]，未來辨識將直接精確導航！`;
+      qtyEl.innerText = `${initialQty} pcs`;
+      specEl.innerText = `規格：已成功入庫至 [${selectedDrawer}]，庫存登記為 ${initialQty} pcs。`;
 
       const drawerNode = document.getElementById(`drawer-${selectedDrawer}`);
       if (drawerNode) {
         drawerNode.classList.add("active-guide");
       }
 
-      addLog(unassignedClassName, selectedDrawer);
-      alert(`設定成功！類別 [${unassignedClassName}] 已永久指定至抽屜 [${selectedDrawer}]。`);
+      addLog(unassignedClassName, `新入庫至 [${selectedDrawer}] (庫存: ${initialQty} pcs)`);
+      alert(`設定成功！類別 [${unassignedClassName}] 已指定至抽屜 [${selectedDrawer}]。`);
     }
 
-    // ========== AI 模型與相機辨識流程 ==========
+    // ========== AI 模型與相機開關流程 ==========
     let model, webcam, maxPredictions;
     let isPredicting = false;
     let lastLoggedPart = null;
+    let animFrameId = null;
 
-    // 保留使用者自訂的取樣與等待參數
     const SAMPLE_COUNT = 15;
     const COOLDOWN_MS = 800;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     let currentFacingMode = "environment";
+
+    async function toggleCam() {
+      if (isPredicting) {
+        stopCam();
+      } else {
+        await startCam();
+      }
+    }
+
+    async function startCam() {
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入中...';
+
+      try {
+        if (!model) {
+          await loadAIModel();
+        }
+        await startWebcam();
+
+        document.getElementById("camStatus").innerText = "狀態：實時運算中";
+        isPredicting = true;
+        
+        btn.disabled = false;
+        btn.className = "btn btn-danger";
+        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> 關閉鏡頭檢測';
+      } catch (err) {
+        console.error(err);
+        alert("鏡頭或模型載入失敗！請確認相機權限與網路。");
+        btn.disabled = false;
+        btn.className = "btn";
+        btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
+      }
+    }
+
+    function stopCam() {
+      isPredicting = false;
+
+      if (animFrameId) {
+        window.cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+
+      if (webcam) {
+        webcam.stop();
+      }
+
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      document.getElementById("placeholder").style.display = "block";
+
+      document.getElementById("camStatus").innerText = "狀態：已關閉";
+      document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
+      document.getElementById("topClassName").innerText = "--";
+      document.getElementById("topClassVal").innerText = "--%";
+      document.getElementById("topClassBar").style.width = "0%";
+      sampleBuffer = [];
+
+      updateNavigation("empty", 0);
+
+      const btn = document.getElementById("startBtn");
+      btn.disabled = false;
+      btn.className = "btn";
+      btn.innerHTML = '<i class="fa-solid fa-camera"></i> 開啟鏡頭檢測';
+    }
 
     async function openModelSettings() {
       const input = prompt("請輸入 Teachable Machine 模型分享網址：", MODEL_URL);
@@ -775,7 +994,7 @@
       const newUrl = input.trim().endsWith('/') ? input.trim() : input.trim() + '/';
       MODEL_URL = newUrl;
 
-      if (webcam) {
+      if (isPredicting) {
         document.getElementById("camStatus").innerText = "狀態：重新載入新模型中...";
         try {
           await loadAIModel();
@@ -793,89 +1012,9 @@
     async function loadAIModel() {
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
-
       model = await tmImage.load(modelURL, metadataURL);
       maxPredictions = model.getTotalClasses();
-
-      // 套用顏色
       applyModelColors();
-    }
-
-        let animFrameId = null;
-
-    // 開關切換核心函式
-    async function toggleCam() {
-      if (isPredicting) {
-        stopCam();
-      } else {
-        await startCam();
-      }
-    }
-
-    // 開啟鏡頭
-    async function startCam() {
-      const btn = document.getElementById("startBtn");
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入雲端模型中...';
-
-      try {
-        if (!model) {
-          await loadAIModel();
-        }
-        await startWebcam();
-
-        document.getElementById("camStatus").innerText = "狀態：實時運算中";
-        isPredicting = true;
-        
-        // 變換為紅色關閉按鈕
-        btn.disabled = false;
-        btn.className = "btn btn-danger";
-        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> 關閉鏡頭檢測';
-      } catch (err) {
-        console.error(err);
-        alert("鏡頭或模型載入失敗！請確認是否已允許相機權限。");
-        btn.disabled = false;
-        btn.className = "btn";
-        btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
-      }
-    }
-
-    // 關閉鏡頭並釋放硬體
-    function stopCam() {
-      isPredicting = false;
-
-      // 停止畫面推論迴圈
-      if (animFrameId) {
-        window.cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
-
-      // 關閉相機硬體串流
-      if (webcam) {
-        webcam.stop();
-      }
-
-      // 清除畫面
-      const box = document.getElementById("webcam-box");
-      const oldCanvas = box.querySelector("canvas");
-      if (oldCanvas) oldCanvas.remove();
-      document.getElementById("placeholder").style.display = "block";
-
-      // 狀態歸零
-      document.getElementById("camStatus").innerText = "狀態：已關閉";
-      document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
-      document.getElementById("topClassName").innerText = "--";
-      document.getElementById("topClassVal").innerText = "--%";
-      document.getElementById("topClassBar").style.width = "0%";
-      sampleBuffer = [];
-
-      updateNavigation("empty", 0);
-
-      // 還原為藍色開啟按鈕
-      const btn = document.getElementById("startBtn");
-      btn.disabled = false;
-      btn.className = "btn";
-      btn.innerHTML = '<i class="fa-solid fa-camera"></i> 開啟鏡頭檢測';
     }
 
     async function startWebcam() {
@@ -908,11 +1047,11 @@
       await predict();
       animFrameId = window.requestAnimationFrame(loop);
     }
+
     async function predict() {
       if (!isPredicting || !model) return;
 
       const now = performance.now();
-
       if (now < cooldownUntil) {
         const remaining = Math.ceil((cooldownUntil - now) / 100) / 10;
         document.getElementById("fpsCounter").innerText = `鎖定顯示中 (${remaining}s)`;
@@ -920,7 +1059,6 @@
       }
 
       const prediction = await model.predict(webcam.canvas);
-      
       const frameData = {};
       for (let i = 0; i < maxPredictions; i++) {
         frameData[prediction[i].className] = prediction[i].probability;
@@ -938,7 +1076,6 @@
 
     function evaluateSamples() {
       const classTotals = {};
-
       sampleBuffer.forEach(frame => {
         for (let className in frame) {
           classTotals[className] = (classTotals[className] || 0) + frame[className];
@@ -959,7 +1096,6 @@
       const percent = Math.round(highestAvgProb * 100);
       const color = classColorMap[bestClass] || "var(--accent)";
 
-      // 單一最高機率長條圖更新
       document.getElementById("topClassName").innerText = `${bestClass}`;
       document.getElementById("topClassName").style.color = color;
       
@@ -980,28 +1116,31 @@
 
       const nameEl = document.getElementById("detectedName");
       const drawerEl = document.getElementById("targetDrawer");
+      const qtyEl = document.getElementById("targetQty");
       const confEl = document.getElementById("targetConf");
       const specEl = document.getElementById("partSpec");
       const badge = document.getElementById("guideBadge");
       const assignBtn = document.getElementById("quickAssignBtn");
+      const stockBtn = document.getElementById("stockAdjustBtn");
       const voiceBtn = document.getElementById("voiceBtn");
 
-      // 清除所有抽屜高亮
       document.querySelectorAll(".drawer-node").forEach(node => {
         node.classList.remove("active-guide");
       });
 
-      // 1. 純背景狀態 (只有在模型明確判定為 empty 且非零件時)
+      // 1. 背景狀態
       if (className.toLowerCase() === "empty") {
         nameEl.innerText = "等待放置零件...";
         nameEl.style.color = "var(--text-muted)";
         drawerEl.innerText = "--";
         drawerEl.style.color = "var(--accent)";
+        qtyEl.innerText = "--";
         confEl.innerText = `${Math.round(confidence * 100)}%`;
         specEl.innerText = "規格：請將零件置於取景框中央以獲得最佳推論精確度";
         badge.innerText = "STANDBY";
         badge.style.background = "#334155";
         assignBtn.style.display = "none";
+        stockBtn.style.display = "none";
         voiceBtn.style.display = "none";
         unassignedClassName = "";
         currentIdentifiedPart = "";
@@ -1009,24 +1148,27 @@
         return;
       }
 
-      // 2. 辨識出零件類別 (無論信心度高低)
+      // 2. 辨識為零件
       currentIdentifiedPart = className;
       nameEl.innerText = className;
       nameEl.style.color = color;
       confEl.innerText = `${Math.round(confidence * 100)}%`;
       badge.innerText = "LOCATED";
       badge.style.background = "#059669";
-      voiceBtn.style.display = "inline-flex"; // 辨識到零件時顯示語音按鈕
+      voiceBtn.style.display = "inline-flex";
 
       if (targetDrawer) {
-        // 情況 A：倉庫內已有此抽屜位置 -> 語音按鈕獨自居中
+        // 已入庫
         assignBtn.style.display = "none";
+        stockBtn.style.display = "inline-flex";
         unassignedClassName = "";
         currentIdentifiedDrawer = targetDrawer;
 
+        const currentQty = drawerData[targetDrawer] ? drawerData[targetDrawer].qty : 0;
         drawerEl.innerText = targetDrawer;
         drawerEl.style.color = color;
-        specEl.innerText = `規格：已成功對應至庫房 [${targetDrawer}] 格位`;
+        qtyEl.innerText = `${currentQty} pcs`;
+        specEl.innerText = `規格：已對應至 [${targetDrawer}] 格位，目前在庫 ${currentQty} pcs。`;
 
         const drawerNode = document.getElementById(`drawer-${targetDrawer}`);
         if (drawerNode) {
@@ -1035,26 +1177,28 @@
         }
 
         if (lastLoggedPart !== className && confidence > 0.85) {
-          addLog(className, targetDrawer);
+          addLog(className, `歸位導航至 [${targetDrawer}] (庫存: ${currentQty} pcs)`);
           lastLoggedPart = className;
         }
       } else {
-        // 情況 B：倉庫沒有這個零件 -> 顯示加入倉庫按鈕，語音按鈕自動排列在下方
+        // 未入庫
         unassignedClassName = className;
         currentIdentifiedDrawer = "";
         drawerEl.innerText = "未入庫";
         drawerEl.style.color = "var(--warning)";
-        specEl.innerText = `提示：工廠庫房尚未收納「${className}」，請點擊下方按鈕選擇抽屜完成入庫。`;
+        qtyEl.innerText = "0 pcs";
+        specEl.innerText = `提示：庫房尚未收納「${className}」，請點擊下方按鈕分配抽屜與庫存。`;
         assignBtn.style.display = "inline-flex";
+        stockBtn.style.display = "none";
       }
     }
 
-    function addLog(name, drawer) {
+    function addLog(name, action) {
       const list = document.getElementById("logList");
       const time = new Date().toLocaleTimeString();
       const item = document.createElement("div");
       item.className = "log-item";
-      item.innerHTML = `<span>${name}</span> <span>歸位至 [${drawer}] · ${time}</span>`;
+      item.innerHTML = `<span>${name}</span> <span>${action} · ${time}</span>`;
       list.prepend(item);
     }
 
