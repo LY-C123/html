@@ -65,6 +65,8 @@
     .btn-secondary:hover { background: #475569; }
     .btn-warning { background: var(--warning); color: #000; }
     .btn-warning:hover { background: #d97706; color: #fff; }
+    .btn-danger {background: var(--danger); color: #fff;}
+    .btndanger:hover {background: #dc2626;}
     .btn-voice { background: #6366f1; color: #fff; }
     .btn-voice:hover { background: #4f46e5; }
 
@@ -308,7 +310,7 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="btn" id="startBtn" onclick="initCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
+      <button class="btn" id="startBtn" onclick="toggleCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
       <button class="btn btn-secondary" id="switchBtn" onclick="switchCamera()"><i class="fa-solid fa-arrows-rotate"></i> 切換鏡頭</button>
       <button class="btn btn-secondary" onclick="openColorSettings()"><i class="fa-solid fa-palette"></i> 標籤顏色</button>
       <button class="btn btn-secondary" onclick="openModelSettings()"><i class="fa-solid fa-gear"></i> 模型設定</button>
@@ -799,24 +801,81 @@
       applyModelColors();
     }
 
-    async function initCam() {
+        let animFrameId = null;
+
+    // 開關切換核心函式
+    async function toggleCam() {
+      if (isPredicting) {
+        stopCam();
+      } else {
+        await startCam();
+      }
+    }
+
+    // 開啟鏡頭
+    async function startCam() {
       const btn = document.getElementById("startBtn");
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入雲端模型中...';
 
       try {
-        await loadAIModel();
+        if (!model) {
+          await loadAIModel();
+        }
         await startWebcam();
 
         document.getElementById("camStatus").innerText = "狀態：實時運算中";
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> 檢測運作中';
         isPredicting = true;
+        
+        // 變換為紅色關閉按鈕
+        btn.disabled = false;
+        btn.className = "btn btn-danger";
+        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> 關閉鏡頭檢測';
       } catch (err) {
         console.error(err);
-        alert("模型載入失敗！請確認網路是否正常，或檢查模型分享連結。");
+        alert("鏡頭或模型載入失敗！請確認是否已允許相機權限。");
         btn.disabled = false;
+        btn.className = "btn";
         btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
       }
+    }
+
+    // 關閉鏡頭並釋放硬體
+    function stopCam() {
+      isPredicting = false;
+
+      // 停止畫面推論迴圈
+      if (animFrameId) {
+        window.cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+
+      // 關閉相機硬體串流
+      if (webcam) {
+        webcam.stop();
+      }
+
+      // 清除畫面
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      document.getElementById("placeholder").style.display = "block";
+
+      // 狀態歸零
+      document.getElementById("camStatus").innerText = "狀態：已關閉";
+      document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
+      document.getElementById("topClassName").innerText = "--";
+      document.getElementById("topClassVal").innerText = "--%";
+      document.getElementById("topClassBar").style.width = "0%";
+      sampleBuffer = [];
+
+      updateNavigation("empty", 0);
+
+      // 還原為藍色開啟按鈕
+      const btn = document.getElementById("startBtn");
+      btn.disabled = false;
+      btn.className = "btn";
+      btn.innerHTML = '<i class="fa-solid fa-camera"></i> 開啟鏡頭檢測';
     }
 
     async function startWebcam() {
@@ -824,7 +883,7 @@
       webcam = new tmImage.Webcam(340, 340, isUser);
       await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
-      window.requestAnimationFrame(loop);
+      animFrameId = window.requestAnimationFrame(loop);
 
       document.getElementById("placeholder").style.display = "none";
       const box = document.getElementById("webcam-box");
@@ -844,11 +903,11 @@
     }
 
     async function loop() {
+      if (!isPredicting) return;
       webcam.update();
       await predict();
-      window.requestAnimationFrame(loop);
+      animFrameId = window.requestAnimationFrame(loop);
     }
-
     async function predict() {
       if (!isPredicting || !model) return;
 
