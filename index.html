@@ -985,7 +985,9 @@
       document.getElementById("camStatus").innerText = "狀態：已關閉";
       document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
       document.getElementById("topClassName").innerText = "--";
+      document.getElementById("topClassName").style.color = "inherit";
       document.getElementById("topClassVal").innerText = "--%";
+      document.getElementById("topClassVal").style.color = "var(--accent)";
       document.getElementById("topClassBar").style.width = "0%";
       sampleBuffer = [];
 
@@ -1069,6 +1071,7 @@
       }
 
       const prediction = await model.predict(webcam.canvas);
+      if (!isPredicting) return;
       const frameData = {};
       for (let i = 0; i < maxPredictions; i++) {
         frameData[prediction[i].className] = prediction[i].probability;
