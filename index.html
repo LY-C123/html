@@ -132,7 +132,7 @@
       padding: 20px;
     }
 
-    /* 鏡頭控制條（取樣幀數 + 放大倍率 + 放大鏡） */
+    /* 鏡頭控制條 */
     .cam-toolbar {
       display: flex;
       justify-content: space-between;
@@ -162,18 +162,45 @@
       outline: none;
       cursor: pointer;
     }
-    .btn-mini {
+
+    /* 放大鏡外框群組 (把 1.0x / 1.5x / 2.0x 框在一起) */
+    .magnifier-frame {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       background: #1e293b;
+      border: 1.5px solid rgba(56, 189, 248, 0.55);
+      border-radius: 8px;
+      padding: 3px 6px;
+      box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.12);
+    }
+    .magnifier-frame .mag-icon {
+      color: var(--accent);
+      font-size: 0.85rem;
+      padding: 0 5px 0 3px;
+      border-right: 1px solid var(--border-color);
+      margin-right: 2px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+    }
+    .btn-mini {
+      background: transparent;
       color: #cbd5e1;
-      border: 1px solid var(--border-color);
+      border: 1px solid transparent;
       border-radius: 5px;
-      padding: 4px 9px;
+      padding: 3px 9px;
       font-size: 0.78rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
     }
-    .btn-mini:hover, .btn-mini.active {
+    .btn-mini:hover {
+      color: #fff;
+      background: rgba(56, 189, 248, 0.16);
+    }
+    .btn-mini.active {
       background: var(--accent);
       color: #000;
       border-color: var(--accent);
@@ -189,13 +216,23 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      user-select: none;
+    }
+    .webcam-box.zoom-ready {
+      cursor: zoom-in;
+    }
+    .webcam-box.zoomed {
+      cursor: grab;
+    }
+    .webcam-box.zoomed:active {
+      cursor: grabbing;
     }
     .webcam-box video, .webcam-box canvas.main-cam {
       width: 100% !important;
       height: 100% !important;
       object-fit: cover;
       transform-origin: center center;
-      transition: transform 0.15s ease-out;
+      transition: transform 0.18s ease-out;
     }
     .webcam-placeholder {
       position: absolute;
@@ -216,38 +253,37 @@
       z-index: 2;
     }
 
-    /* 局部放大鏡視窗 */
-    .loupe-box {
+    /* 點選局部放大提示標籤與對焦框 */
+    .zoom-hint-badge {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 128px;
-      height: 128px;
-      border-radius: 10px;
-      border: 2px solid var(--accent);
-      background: #020617;
-      overflow: hidden;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.65);
+      bottom: 10px;
+      left: 10px;
+      background: rgba(15, 23, 42, 0.82);
+      color: #e2e8f0;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      font-size: 0.74rem;
+      padding: 3px 9px;
+      border-radius: 5px;
+      pointer-events: none;
       display: none;
       z-index: 4;
-      pointer-events: none;
     }
-    .loupe-box canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .loupe-label {
+    .focus-spot-ring {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(15, 23, 42, 0.85);
-      color: var(--accent);
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-align: center;
-      padding: 2px 4px;
+      width: 58px;
+      height: 58px;
+      border: 2px solid #facc15;
+      border-radius: 10px;
+      transform: translate(-50%, -50%) scale(1.2);
+      pointer-events: none;
+      opacity: 0;
+      z-index: 5;
+      box-shadow: 0 0 12px rgba(250, 204, 21, 0.55);
+      transition: opacity 0.25s ease, transform 0.2s ease-out;
+    }
+    .focus-spot-ring.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
     }
 
     /* 單一最高機率長條圖區塊 */
@@ -542,7 +578,7 @@
           <span id="fpsCounter" style="color:var(--accent);">進度: 等待開啟</span>
         </div>
 
-        <!-- 5 / 10 / 15 幀取樣選擇 + 畫面放大 + 放大鏡 -->
+        <!-- 5 / 10 / 15 幀取樣選擇 + 放大鏡群組框框 (1.0x / 1.5x / 2.0x) -->
         <div class="cam-toolbar">
           <div class="cam-tool-group">
             <label for="sampleFramesSelect"><i class="fa-solid fa-layer-group"></i> 取樣幀數：</label>
@@ -553,14 +589,11 @@
             </select>
           </div>
 
-          <div class="cam-tool-group">
-            <span><i class="fa-solid fa-magnifying-glass-plus"></i> 畫面放大：</span>
+          <div class="magnifier-frame" title="選擇放大倍率，並可直接點選鏡頭畫面指定局部放大位置">
+            <span class="mag-icon"><i class="fa-solid fa-magnifying-glass"></i> 放大</span>
             <button type="button" class="btn-mini active" id="zoom-1" onclick="setMagnify(1)">1.0x</button>
             <button type="button" class="btn-mini" id="zoom-1.5" onclick="setMagnify(1.5)">1.5x</button>
             <button type="button" class="btn-mini" id="zoom-2" onclick="setMagnify(2)">2.0x</button>
-            <button type="button" class="btn-mini" id="loupeBtn" onclick="toggleLoupe()">
-              <i class="fa-solid fa-eye"></i> 放大鏡
-            </button>
           </div>
         </div>
 
@@ -570,10 +603,8 @@
             <p>點擊上方「開啟鏡頭檢測」載入雲端模型並進行即時辨識</p>
           </div>
           <div class="crosshair"></div>
-          <div class="loupe-box" id="loupeBox">
-            <canvas id="loupeCanvas" width="160" height="160"></canvas>
-            <div class="loupe-label">中央局部放大鏡</div>
-          </div>
+          <div class="focus-spot-ring" id="focusSpotRing"></div>
+          <div class="zoom-hint-badge" id="zoomHintBadge">點選畫面任意位置可局部放大</div>
         </div>
 
         <!-- 僅顯示最高可能性類別的長條圖 -->
@@ -685,8 +716,8 @@
           <p>想反應更快選 <strong>5 幀</strong>；若光線或手震讓辨識容易跳動，可改選 <strong>10 幀</strong> 或 <strong>15 幀</strong> 做多幀平均，結果更穩。</p>
         </div>
         <div class="guide-box">
-          <h4>3. 畫面放大與局部放大鏡</h4>
-          <p>遇到小零件（如電阻色環、電容印字）可按 <strong>1.5x / 2.0x</strong> 放大畫面，或開啟右上角「<strong>放大鏡</strong>」檢視畫面中央局部細節。</p>
+          <h4>3. 點選畫面局部放大（1.0x / 1.5x / 2.0x）</h4>
+          <p>遇到小零件時，選擇放大鏡框內的 <strong>1.5x / 2.0x</strong>，並直接<strong>點選鏡頭畫面上的零件位置</strong>即可局部放大檢視（也可拖曳微調位置）。</p>
         </div>
         <div class="guide-box">
           <h4>4. 歸位導航、入庫與調庫存</h4>
@@ -702,7 +733,7 @@
           <h4>拍攝建議</h4>
           <ul>
             <li>將零件放在中央虛線框內，背景盡量簡潔、光線均勻。</li>
-            <li>避免反光直射零件表面，必要時用 1.5x 或放大鏡拉近看清楚。</li>
+            <li>避免反光直射零件表面，點選畫面可針對局部細節放大確認。</li>
           </ul>
         </div>
         <div class="guide-box">
@@ -1411,7 +1442,7 @@
       }
     }
 
-    // ========== Teachable Machine 即時辨識引擎 (5 / 10 / 15 幀 + 畫面放大 + 放大鏡) ==========
+    // ========== Teachable Machine 即時辨識引擎 (5 / 10 / 15 幀 + 點選局部放大) ==========
     let model = null;
     let webcam = null;
     let maxPredictions = 0;
@@ -1426,7 +1457,12 @@
 
     let currentFacingMode = "environment";
     let magnifyScale = 1;
-    let loupeEnabled = false;
+    let focusOriginX = 50; // 百分比 0~100
+    let focusOriginY = 50;
+    let isDraggingZoom = false;
+    let hasDraggedZoom = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
 
     function onSampleFramesChange() {
       const val = parseInt(document.getElementById("sampleFramesSelect").value, 10);
@@ -1435,8 +1471,16 @@
       cooldownUntil = 0;
     }
 
-    function setMagnify(scale) {
+    function setMagnify(scale, originX = null, originY = null) {
       magnifyScale = scale;
+      if (scale === 1) {
+        focusOriginX = 50;
+        focusOriginY = 50;
+      } else if (originX !== null && originY !== null) {
+        focusOriginX = Math.max(0, Math.min(100, originX));
+        focusOriginY = Math.max(0, Math.min(100, originY));
+      }
+
       [1, 1.5, 2].forEach(s => {
         const btn = document.getElementById(`zoom-${s}`);
         if (btn) btn.classList.toggle("active", s === scale);
@@ -1447,46 +1491,92 @@
     function applyMagnifyStyle() {
       const box = document.getElementById("webcam-box");
       const target = box ? box.querySelector("canvas.main-cam, video") : null;
+      const hint = document.getElementById("zoomHintBadge");
+
+      if (box) {
+        box.classList.toggle("zoom-ready", isPredicting && magnifyScale === 1);
+        box.classList.toggle("zoomed", isPredicting && magnifyScale > 1);
+      }
+
+      if (hint) {
+        if (!isPredicting) {
+          hint.style.display = "none";
+        } else {
+          hint.style.display = "block";
+          hint.innerText = magnifyScale > 1
+            ? `局部放大 ${magnifyScale.toFixed(1)}x（點選或拖曳調整位置 · 點 1.0x 還原）`
+            : "點選畫面任意位置可直接 1.5x 局部放大";
+        }
+      }
+
       if (target) {
         const flip = currentFacingMode === "user" ? -1 : 1;
+        target.style.transformOrigin = `${focusOriginX}% ${focusOriginY}%`;
         target.style.transform = `scaleX(${flip * magnifyScale}) scaleY(${magnifyScale})`;
       }
     }
 
-    function toggleLoupe() {
-      loupeEnabled = !loupeEnabled;
-      const btn = document.getElementById("loupeBtn");
-      const loupeBox = document.getElementById("loupeBox");
-      btn.classList.toggle("active", loupeEnabled);
-      loupeBox.style.display = (loupeEnabled && isPredicting) ? "block" : "none";
+    function showFocusSpot(relX, relY) {
+      const ring = document.getElementById("focusSpotRing");
+      if (!ring) return;
+      ring.style.left = `${relX}px`;
+      ring.style.top = `${relY}px`;
+      ring.classList.add("show");
+      clearTimeout(window._spotRingTimer);
+      window._spotRingTimer = setTimeout(() => ring.classList.remove("show"), 850);
     }
 
-    function updateLoupeCanvas() {
-      if (!loupeEnabled || !isPredicting) return;
+    function initPointZoomInteraction() {
       const box = document.getElementById("webcam-box");
-      const srcEl = box ? box.querySelector("canvas.main-cam, video") : null;
-      const loupeCanvas = document.getElementById("loupeCanvas");
-      if (!srcEl || !loupeCanvas) return;
+      if (!box) return;
 
-      const sw = srcEl.videoWidth || srcEl.width || 0;
-      const sh = srcEl.videoHeight || srcEl.height || 0;
-      if (!sw || !sh) return;
+      box.addEventListener("pointerdown", (e) => {
+        if (!isPredicting) return;
+        isDraggingZoom = true;
+        hasDraggedZoom = false;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+      });
 
-      // 擷取中央 1/2.5 區域放到放大鏡檢視
-      const cropW = Math.max(40, Math.round(sw / 2.5));
-      const cropH = Math.max(40, Math.round(sh / 2.5));
-      const sx = Math.max(0, Math.round((sw - cropW) / 2));
-      const sy = Math.max(0, Math.round((sh - cropH) / 2));
+      window.addEventListener("pointermove", (e) => {
+        if (!isDraggingZoom || !isPredicting || magnifyScale <= 1) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) hasDraggedZoom = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
 
-      const ctx = loupeCanvas.getContext("2d");
-      ctx.clearRect(0, 0, loupeCanvas.width, loupeCanvas.height);
-      ctx.save();
-      if (currentFacingMode === "user") {
-        ctx.translate(loupeCanvas.width, 0);
-        ctx.scale(-1, 1);
-      }
-      ctx.drawImage(srcEl, sx, sy, cropW, cropH, 0, 0, loupeCanvas.width, loupeCanvas.height);
-      ctx.restore();
+        focusOriginX = Math.max(0, Math.min(100, focusOriginX - (dx / box.clientWidth) * 100));
+        focusOriginY = Math.max(0, Math.min(100, focusOriginY - (dy / box.clientHeight) * 100));
+        applyMagnifyStyle();
+      });
+
+      window.addEventListener("pointerup", (e) => {
+        if (!isDraggingZoom) return;
+        isDraggingZoom = false;
+        if (hasDraggedZoom || !isPredicting) return;
+
+        const rect = box.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+          return;
+        }
+
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+        const pctX = (relX / rect.width) * 100;
+        const pctY = (relY / rect.height) * 100;
+
+        showFocusSpot(relX, relY);
+
+        if (magnifyScale === 1) {
+          setMagnify(1.5, pctX, pctY);
+        } else {
+          // 已在放大狀態時，點選新位置即把局部放大焦點移到該處
+          focusOriginX = (focusOriginX + pctX) / 2;
+          focusOriginY = (focusOriginY + pctY) / 2;
+          applyMagnifyStyle();
+        }
+      });
     }
 
     async function toggleCam() {
@@ -1510,12 +1600,9 @@
 
         document.getElementById("camStatus").innerText = "狀態：即時辨識中";
         document.getElementById("placeholder").style.display = "none";
-        if (loupeEnabled) {
-          document.getElementById("loupeBox").style.display = "block";
-        }
-        applyMagnifyStyle();
 
         isPredicting = true;
+        applyMagnifyStyle();
         animFrameId = window.requestAnimationFrame(loop);
 
         btn.disabled = false;
@@ -1545,7 +1632,7 @@
       }
 
       document.getElementById("placeholder").style.display = "block";
-      document.getElementById("loupeBox").style.display = "none";
+      document.getElementById("zoomHintBadge").style.display = "none";
       document.getElementById("camStatus").innerText = "狀態：已關閉";
       document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
       document.getElementById("topClassName").innerText = "--";
@@ -1578,7 +1665,6 @@
           webcam.canvas.parentNode.removeChild(webcam.canvas);
         }
       }
-      const flip = currentFacingMode === "user";
       webcam = new tmImage.Webcam(400, 300, false);
       await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
@@ -1607,7 +1693,6 @@
       if (!isPredicting) return;
       if (webcam) {
         webcam.update();
-        updateLoupeCanvas();
         await predict();
       }
       if (isPredicting) {
@@ -1770,6 +1855,7 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       loadDrawerMapping();
+      initPointZoomInteraction();
     });
   </script>
 </body>
