@@ -435,14 +435,132 @@
       position: absolute;
       bottom: 10px;
       left: 10px;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(15, 23, 42, 0.82);
       color: #e2e8f0;
       font-size: 0.74rem;
-      padding: 3px 9px;
+      padding: 4px 10px;
       border-radius: 5px;
       border: 1px solid rgba(148, 163, 184, 0.25);
       pointer-events: none;
       display: none;
+      z-index: 4;
+    }
+
+    .webcam-box.pannable {
+      cursor: grab;
+    }
+
+    .webcam-box.pannable:active {
+      cursor: grabbing;
+    }
+
+    /* 拍攝畫質即時銳化與對比強化等級 */
+    video.quality-720p {
+      filter: none;
+    }
+
+    video.quality-1080p {
+      filter: url(#sharpenMild) contrast(1.08) saturate(1.06);
+    }
+
+    video.quality-4k {
+      filter: url(#sharpenStrong) contrast(1.16) saturate(1.12) brightness(1.03);
+    }
+
+    /* 微距局部放大鏡 (PiP Loupe) */
+    .macro-loupe-box {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 132px;
+      height: 132px;
+      border-radius: 10px;
+      border: 2px solid var(--accent);
+      background: #020617;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+      display: none;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .macro-loupe-box canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .macro-loupe-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.82);
+      color: var(--accent);
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-align: center;
+      padding: 2px 4px;
+    }
+
+    /* 點按對焦動畫框 */
+    .tap-focus-ring {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      border: 2px solid #facc15;
+      border-radius: 10px;
+      transform: translate(-50%, -50%) scale(1.25);
+      pointer-events: none;
+      opacity: 0;
+      z-index: 6;
+      transition: transform 0.2s ease-out, opacity 0.25s ease;
+      box-shadow: 0 0 14px rgba(250, 204, 21, 0.55);
+    }
+
+    .tap-focus-ring.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .macro-subbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: #0b1220;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 7px 12px;
+      margin-bottom: 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .macro-preset-group {
+      display: inline-flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .btn-mini {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-mini:hover,
+    .btn-mini.active {
+      background: var(--accent);
+      color: #082f49;
+      border-color: var(--accent);
     }
 
     /* 單一最高機率長條圖區塊 */
@@ -1188,6 +1306,18 @@
   </style>
 </head>
 <body>
+  <!-- GPU 即時影像銳化濾鏡（讓不同畫質模式在各式鏡頭上都能呈現明顯細節差異） -->
+  <svg width="0" height="0" style="position:absolute;" aria-hidden="true">
+    <defs>
+      <filter id="sharpenMild">
+        <feConvolveMatrix order="3" kernelMatrix="0 -0.45 0 -0.45 2.8 -0.45 0 -0.45 0" preserveAlpha="true"/>
+      </filter>
+      <filter id="sharpenStrong">
+        <feConvolveMatrix order="3" kernelMatrix="0 -0.85 0 -0.85 4.4 -0.85 0 -0.85 0" preserveAlpha="true"/>
+      </filter>
+    </defs>
+  </svg>
+
   <div class="app-container">
     <header>
       <div class="header-title">
@@ -1239,9 +1369,9 @@
             <div class="cam-control-item">
               <label for="resolutionSelect"><i class="fa-solid fa-sliders"></i> 拍攝畫質：</label>
               <select id="resolutionSelect" class="cam-select" onchange="onResolutionChange()">
-                <option value="720p">720p HD (1280×720)</option>
-                <option value="1080p" selected>1080p Full HD (1920×1080)</option>
-                <option value="4k">4K UHD (3840×2160)</option>
+                <option value="720p">標準 720p (原圖無銳化)</option>
+                <option value="1080p" selected>高畫質 1080p (細節銳化)</option>
+                <option value="4k">極致 4K (強效微距銳利)</option>
               </select>
             </div>
 
@@ -1255,12 +1385,6 @@
             </div>
 
             <div class="cam-control-item">
-              <label for="zoomSlider"><i class="fa-solid fa-magnifying-glass-plus"></i> 微距變焦：</label>
-              <input type="range" id="zoomSlider" class="zoom-slider" min="1" max="3" step="0.1" value="1" oninput="onZoomChange(this.value)">
-              <span id="zoomLabel" style="min-width:34px; color:#fff; font-weight:600;">1.0x</span>
-            </div>
-
-            <div class="cam-control-item">
               <button class="btn btn-secondary btn-sm" id="torchBtn" onclick="toggleTorch()" style="display:none;" title="切換補光燈">
                 <i class="fa-solid fa-bolt"></i> 補光
               </button>
@@ -1270,13 +1394,47 @@
             </div>
           </div>
 
+          <!-- 微距變焦、焦點平移與放大鏡控制列 -->
+          <div class="macro-subbar">
+            <div class="cam-control-item">
+              <label for="zoomSlider"><i class="fa-solid fa-magnifying-glass"></i> 縮放變焦：</label>
+              <input type="range" id="zoomSlider" class="zoom-slider" min="0.7" max="4" step="0.1" value="1" oninput="onZoomChange(this.value)">
+              <span id="zoomLabel" style="min-width:34px; color:#fff; font-weight:600;">1.0x</span>
+              <div class="macro-preset-group">
+                <button class="btn-mini" onclick="setZoomPreset(0.8)">廣角</button>
+                <button class="btn-mini active" onclick="setZoomPreset(1.0)">1x</button>
+                <button class="btn-mini" onclick="setZoomPreset(2.0)">2x微距</button>
+                <button class="btn-mini" onclick="setZoomPreset(3.0)">3x特寫</button>
+              </div>
+            </div>
+
+            <div class="cam-control-item" id="manualFocusWrap" style="display:none;">
+              <label for="focusSlider"><i class="fa-solid fa-crosshairs"></i> 手動對焦：</label>
+              <input type="range" id="focusSlider" class="zoom-slider" min="0" max="1" step="0.05" value="0.5" oninput="onManualFocusChange(this.value)">
+            </div>
+
+            <div class="cam-control-item">
+              <button class="btn-mini" id="loupeToggleBtn" onclick="toggleMacroLoupe()" title="顯示右上角 2.5x 微距細節檢視窗">
+                <i class="fa-solid fa-eye"></i> 微距放大鏡
+              </button>
+              <button class="btn-mini" onclick="resetMacroView()" title="重設變焦與焦點位置">
+                <i class="fa-solid fa-rotate-left"></i> 歸中
+              </button>
+            </div>
+          </div>
+
           <div class="webcam-box" id="webcam-box">
-            <video id="hdVideo" autoplay playsinline muted></video>
+            <video id="hdVideo" class="quality-1080p" autoplay playsinline muted></video>
             <div class="webcam-placeholder" id="placeholder">
               <i class="fa-solid fa-camera-rotate"></i>
-              <p>點擊上方「開啟鏡頭檢測」啟動高畫質即時串流，並以中央 1:1 區域進行 AI 精準辨識</p>
+              <p>點擊上方「開啟鏡頭檢測」啟動高畫質即時串流；支援雙向縮放、拖曳平移焦點、點擊對焦與右上角微距放大鏡</p>
             </div>
             <div class="crosshair" id="crosshairGuide"></div>
+            <div class="tap-focus-ring" id="tapFocusRing"></div>
+            <div class="macro-loupe-box" id="macroLoupeBox">
+              <canvas id="macroLoupeCanvas" width="160" height="160"></canvas>
+              <div class="macro-loupe-label">2.5x 微距細節</div>
+            </div>
             <div class="stream-overlay-tag" id="streamOverlayTag">--</div>
           </div>
 
@@ -1709,9 +1867,9 @@
     let MODEL_URL = "https://teachablemachine.withgoogle.com/models/_lP_E--Od/";
 
     const RESOLUTION_PRESETS = {
-      "720p":  { w: 1280, h: 720,  label: "720p HD" },
-      "1080p": { w: 1920, h: 1080, label: "1080p Full HD" },
-      "4k":    { w: 3840, h: 2160, label: "4K UHD" }
+      "720p":  { w: 1280, h: 720,  label: "標準 720p · 原圖",     cssClass: "quality-720p",  canvasFilter: "none" },
+      "1080p": { w: 1920, h: 1080, label: "高畫質 1080p · 細節銳化", cssClass: "quality-1080p", canvasFilter: "contrast(1.08) saturate(1.06)" },
+      "4k":    { w: 3840, h: 2160, label: "極致 4K · 強效銳利化",   cssClass: "quality-4k",    canvasFilter: "contrast(1.16) saturate(1.12) brightness(1.03)" }
     };
 
     const PALETTE = [
@@ -2712,6 +2870,13 @@
     }
     let currentFacingMode = "environment";
     let currentZoom = 1.0;
+    let panX = 0; // -0.35 ~ +0.35 相對偏移
+    let panY = 0;
+    let isDraggingPan = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragMoved = false;
+    let macroLoupeEnabled = false;
     let hardwareZoomSupported = false;
     let torchEnabled = false;
 
@@ -2780,6 +2945,7 @@
       document.getElementById("placeholder").style.display = "block";
       document.getElementById("crosshairGuide").style.display = "none";
       document.getElementById("streamOverlayTag").style.display = "none";
+      document.getElementById("macroLoupeBox").style.display = "none";
       document.getElementById("snapshotBtn").disabled = true;
 
       const presetKey = document.getElementById("resolutionSelect").value;
@@ -2852,21 +3018,44 @@
       video.style.display = "block";
       document.getElementById("placeholder").style.display = "none";
       document.getElementById("crosshairGuide").style.display = "block";
+      applyQualityVisualFilter(presetKey);
       applyVideoTransform();
+      updateStreamOverlayText();
 
       const settings = videoTrack && videoTrack.getSettings ? videoTrack.getSettings() : {};
       const actualW = video.videoWidth || settings.width || preset.w;
       const actualH = video.videoHeight || settings.height || preset.h;
-      const actualFps = settings.frameRate ? Math.round(settings.frameRate) : 30;
-      const qualityTag = actualH >= 2000 ? "4K UHD" : actualH >= 1000 ? "Full HD" : actualH >= 700 ? "HD" : "SD";
+      const hwCapped = actualH < preset.h * 0.85;
 
-      document.getElementById("streamMetaBadge").innerHTML = `<i class="fa-solid fa-hd"></i> ${qualityTag} · ${actualW}×${actualH}`;
+      document.getElementById("streamMetaBadge").innerHTML =
+        `<i class="fa-solid fa-hd"></i> ${preset.label} (${actualW}×${actualH})`;
+
+      if (hwCapped) {
+        showToast(`鏡頭硬體最高輸出 ${actualW}×${actualH}，已同步套用「${preset.label}」即時銳化增強`, "info");
+      }
+    }
+
+    function applyQualityVisualFilter(presetKey) {
+      const video = document.getElementById("hdVideo");
+      const preset = RESOLUTION_PRESETS[presetKey] || RESOLUTION_PRESETS["1080p"];
+      video.classList.remove("quality-720p", "quality-1080p", "quality-4k");
+      video.classList.add(preset.cssClass);
+    }
+
+    function updateStreamOverlayText() {
       const overlayTag = document.getElementById("streamOverlayTag");
-      overlayTag.innerText = `${actualW} × ${actualH} @ ${actualFps}fps · 變焦 ${currentZoom.toFixed(1)}x`;
+      const video = document.getElementById("hdVideo");
+      if (!isPredicting && !video.videoWidth) return;
+      const presetKey = document.getElementById("resolutionSelect").value;
+      const preset = RESOLUTION_PRESETS[presetKey] || RESOLUTION_PRESETS["1080p"];
+      const panNote = (Math.abs(panX) > 0.01 || Math.abs(panY) > 0.01) ? " · 已移動焦點" : "";
+      overlayTag.innerText = `${video.videoWidth}×${video.videoHeight} ｜ ${preset.label} ｜ ${currentZoom.toFixed(1)}x${panNote}`;
       overlayTag.style.display = "block";
     }
 
     async function enhanceCameraTrack(track) {
+      const focusWrap = document.getElementById("manualFocusWrap");
+      if (focusWrap) focusWrap.style.display = "none";
       if (!track || typeof track.getCapabilities !== "function") return;
       try {
         const caps = track.getCapabilities();
@@ -2882,17 +3071,22 @@
           advanced.push({ whiteBalanceMode: "continuous" });
         }
 
+        // 若相機支援硬體手動微距對焦距離，解鎖對焦拉桿
+        if (caps.focusDistance && caps.focusMode && caps.focusMode.includes("manual")) {
+          const fSlider = document.getElementById("focusSlider");
+          fSlider.min = caps.focusDistance.min || 0;
+          fSlider.max = caps.focusDistance.max || 1;
+          fSlider.step = caps.focusDistance.step || 0.02;
+          fSlider.value = caps.focusDistance.min || 0;
+          if (focusWrap) focusWrap.style.display = "flex";
+        }
+
         if (caps.zoom) {
           hardwareZoomSupported = true;
-          const slider = document.getElementById("zoomSlider");
-          const minZ = Math.max(1, caps.zoom.min || 1);
-          const maxZ = Math.min(4, caps.zoom.max || 3);
-          slider.min = minZ;
-          slider.max = maxZ;
-          currentZoom = Math.min(Math.max(currentZoom, minZ), maxZ);
-          slider.value = currentZoom;
-          document.getElementById("zoomLabel").innerText = `${Number(currentZoom).toFixed(1)}x`;
-          advanced.push({ zoom: currentZoom });
+          if (currentZoom >= 1) {
+            const hwZ = Math.min(Math.max(currentZoom, caps.zoom.min || 1), caps.zoom.max || 4);
+            advanced.push({ zoom: hwZ });
+          }
         }
 
         if (caps.torch) {
@@ -2907,15 +3101,64 @@
       }
     }
 
+    async function onManualFocusChange(val) {
+      if (!videoTrack) return;
+      try {
+        await videoTrack.applyConstraints({
+          advanced: [{ focusMode: "manual", focusDistance: parseFloat(val) }]
+        });
+      } catch (e) {}
+    }
+
     function applyVideoTransform() {
       const video = document.getElementById("hdVideo");
+      const box = document.getElementById("webcam-box");
       const flip = currentFacingMode === "user" ? -1 : 1;
-      const cssScale = hardwareZoomSupported ? 1 : currentZoom;
-      video.style.transform = `scaleX(${flip * cssScale}) scaleY(${cssScale})`;
+      const cssScale = (hardwareZoomSupported && currentZoom >= 1) ? 1 : currentZoom;
+      const tx = panX * 100;
+      const ty = panY * 100;
+      video.style.transform = `translate(${tx}%, ${ty}%) scaleX(${flip * cssScale}) scaleY(${cssScale})`;
+      if (box) {
+        box.classList.toggle("pannable", currentZoom > 1.05);
+      }
+    }
+
+    function setZoomPreset(z) {
+      const slider = document.getElementById("zoomSlider");
+      slider.value = z;
+      onZoomChange(z);
+      document.querySelectorAll(".macro-preset-group .btn-mini").forEach(btn => {
+        btn.classList.toggle("active", btn.innerText.includes(`${z}x`) || (z === 0.8 && btn.innerText === "廣角"));
+      });
+    }
+
+    function resetMacroView() {
+      panX = 0;
+      panY = 0;
+      setZoomPreset(1.0);
+      if (videoTrack && typeof videoTrack.getCapabilities === "function") {
+        try {
+          const caps = videoTrack.getCapabilities();
+          if (caps.focusMode && caps.focusMode.includes("continuous")) {
+            videoTrack.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+          }
+        } catch (e) {}
+      }
+      showToast("已重設縮放倍率、焦點位置與自動對焦", "info");
+    }
+
+    function toggleMacroLoupe() {
+      macroLoupeEnabled = !macroLoupeEnabled;
+      const btn = document.getElementById("loupeToggleBtn");
+      const box = document.getElementById("macroLoupeBox");
+      btn.classList.toggle("active", macroLoupeEnabled);
+      box.style.display = (macroLoupeEnabled && isPredicting) ? "block" : "none";
+      showToast(macroLoupeEnabled ? "已開啟右上角 2.5x 微距細節放大鏡" : "已關閉微距放大鏡", "info");
     }
 
     async function onResolutionChange() {
       const presetKey = document.getElementById("resolutionSelect").value;
+      applyQualityVisualFilter(presetKey);
       if (!isPredicting) {
         document.getElementById("streamMetaBadge").innerHTML = `<i class="fa-solid fa-hd"></i> 預設 ${RESOLUTION_PRESETS[presetKey].label}`;
         return;
@@ -2932,21 +3175,22 @@
     async function onZoomChange(val) {
       currentZoom = parseFloat(val) || 1.0;
       document.getElementById("zoomLabel").innerText = `${currentZoom.toFixed(1)}x`;
+      if (currentZoom <= 1.0) {
+        panX = 0;
+        panY = 0;
+      }
 
-      if (hardwareZoomSupported && videoTrack) {
+      if (hardwareZoomSupported && videoTrack && currentZoom >= 1.0) {
         try {
-          await videoTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+          const caps = videoTrack.getCapabilities();
+          const hwZ = Math.min(Math.max(currentZoom, caps.zoom.min || 1), caps.zoom.max || 4);
+          await videoTrack.applyConstraints({ advanced: [{ zoom: hwZ }] });
         } catch (e) {
           hardwareZoomSupported = false;
         }
       }
       applyVideoTransform();
-
-      const overlayTag = document.getElementById("streamOverlayTag");
-      if (overlayTag.style.display === "block") {
-        const video = document.getElementById("hdVideo");
-        overlayTag.innerText = `${video.videoWidth} × ${video.videoHeight} · 變焦 ${currentZoom.toFixed(1)}x`;
-      }
+      updateStreamOverlayText();
     }
 
     async function toggleTorch() {
@@ -3012,7 +3256,7 @@
       }
     }
 
-    // 擷取中央 1:1 高畫質 ROI 送入模型推論
+    // 擷取目前對焦中心 1:1 高畫質 ROI 送入模型推論（連動變焦、焦點平移與畫質濾鏡）
     function drawCenterROIToInferenceCanvas() {
       const video = document.getElementById("hdVideo");
       const canvas = document.getElementById("inferenceCanvas");
@@ -3021,10 +3265,15 @@
       const vw = video.videoWidth;
       const vh = video.videoHeight;
       const baseSide = Math.min(vw, vh);
-      const zoomFactor = hardwareZoomSupported ? 1 : currentZoom;
-      const cropSide = Math.max(120, Math.round(baseSide / zoomFactor));
-      const sx = Math.round((vw - cropSide) / 2);
-      const sy = Math.round((vh - cropSide) / 2);
+      const effectiveZoom = (hardwareZoomSupported && currentZoom >= 1) ? 1 : Math.max(0.7, currentZoom);
+      const cropSide = Math.min(baseSide, Math.max(120, Math.round(baseSide / Math.max(1, effectiveZoom))));
+      const centerX = vw / 2 - panX * vw * 0.6;
+      const centerY = vh / 2 - panY * vh * 0.6;
+      const sx = Math.min(vw - cropSide, Math.max(0, Math.round(centerX - cropSide / 2)));
+      const sy = Math.min(vh - cropSide, Math.max(0, Math.round(centerY - cropSide / 2)));
+
+      const presetKey = document.getElementById("resolutionSelect").value;
+      const preset = RESOLUTION_PRESETS[presetKey] || RESOLUTION_PRESETS["1080p"];
 
       const ctx = canvas.getContext("2d");
       ctx.imageSmoothingEnabled = true;
@@ -3032,13 +3281,91 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       ctx.save();
+      ctx.filter = preset.canvasFilter || "none";
       if (currentFacingMode === "user") {
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, sx, sy, cropSide, cropSide, 0, 0, canvas.width, canvas.height);
       ctx.restore();
+
+      // 同步繪製右上角 2.5x 微距細節放大鏡
+      if (macroLoupeEnabled) {
+        const loupeBox = document.getElementById("macroLoupeBox");
+        if (loupeBox.style.display !== "block") loupeBox.style.display = "block";
+        const lCanvas = document.getElementById("macroLoupeCanvas");
+        const lCtx = lCanvas.getContext("2d");
+        const loupeSide = Math.max(80, Math.round(cropSide / 2.2));
+        const lsx = Math.min(vw - loupeSide, Math.max(0, Math.round(centerX - loupeSide / 2)));
+        const lsy = Math.min(vh - loupeSide, Math.max(0, Math.round(centerY - loupeSide / 2)));
+        lCtx.save();
+        lCtx.filter = "contrast(1.18) saturate(1.1)";
+        if (currentFacingMode === "user") {
+          lCtx.translate(lCanvas.width, 0);
+          lCtx.scale(-1, 1);
+        }
+        lCtx.drawImage(video, lsx, lsy, loupeSide, loupeSide, 0, 0, lCanvas.width, lCanvas.height);
+        lCtx.restore();
+      }
+
       return canvas;
+    }
+
+    // 綁定取景框拖曳平移焦點與點擊對焦
+    function initMacroInteraction() {
+      const box = document.getElementById("webcam-box");
+      const ring = document.getElementById("tapFocusRing");
+      if (!box) return;
+
+      box.addEventListener("pointerdown", (e) => {
+        if (!isPredicting) return;
+        isDraggingPan = true;
+        dragMoved = false;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+      });
+
+      window.addEventListener("pointermove", (e) => {
+        if (!isDraggingPan || !isPredicting || currentZoom <= 1.05) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        const maxPan = Math.min(0.35, (currentZoom - 1) * 0.2);
+        panX = Math.max(-maxPan, Math.min(maxPan, panX + dx / box.clientWidth));
+        panY = Math.max(-maxPan, Math.min(maxPan, panY + dy / box.clientHeight));
+        applyVideoTransform();
+        updateStreamOverlayText();
+      });
+
+      window.addEventListener("pointerup", (e) => {
+        if (!isDraggingPan) return;
+        isDraggingPan = false;
+        if (!dragMoved && isPredicting) {
+          const rect = box.getBoundingClientRect();
+          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            const relX = e.clientX - rect.left;
+            const relY = e.clientY - rect.top;
+            ring.style.left = `${relX}px`;
+            ring.style.top = `${relY}px`;
+            ring.classList.add("show");
+            clearTimeout(window._focusRingTimer);
+            window._focusRingTimer = setTimeout(() => ring.classList.remove("show"), 900);
+
+            // 若在微距倍率下點擊畫面，平滑將焦點移向點擊處
+            if (currentZoom > 1.05) {
+              const normX = (0.5 - relX / rect.width) * 0.35;
+              const normY = (0.5 - relY / rect.height) * 0.35;
+              const maxPan = Math.min(0.35, (currentZoom - 1) * 0.2);
+              panX = Math.max(-maxPan, Math.min(maxPan, normX));
+              panY = Math.max(-maxPan, Math.min(maxPan, normY));
+              applyVideoTransform();
+              updateStreamOverlayText();
+            }
+          }
+        }
+      });
     }
 
     async function loop() {
@@ -3234,6 +3561,7 @@
     window.addEventListener("DOMContentLoaded", () => {
       loadCustomSpecs();
       loadDrawerMapping();
+      initMacroInteraction();
     });
   </script>
 </body>
