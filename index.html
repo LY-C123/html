@@ -835,7 +835,7 @@
 
   <!-- 彈窗 4：模型設定視窗 (Modal) -->
   <div class="modal-overlay" id="modelModal">
-    <div class="modal-content">
+    <div class="modal-content" style="box-sizing: border-box; max-width: 460px; overflow: hidden;">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
         <i class="fa-solid fa-gear" style="color:var(--accent);"></i>
         Teachable Machine 模型設定
@@ -843,7 +843,7 @@
       <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
         請輸入模型網址（結尾有無斜線皆可）：
       </p>
-      <input type="url" class="modal-input" id="modelUrlInput" placeholder="https://teachablemachine.withgoogle.com/models/...">
+      <input type="url" class="modal-input" id="modelUrlInput" placeholder="https://teachablemachine.withgoogle.com/models/..." style="box-sizing: border-box; width: 100%; max-width: 100%;">
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="closeModelSettings()">取消</button>
         <button class="btn" onclick="saveModelSettings()"><i class="fa-solid fa-check"></i> 套用</button>
