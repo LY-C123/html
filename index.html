@@ -594,6 +594,7 @@
             <button type="button" class="btn-mini active" id="zoom-1" onclick="setMagnify(1)">1.0x</button>
             <button type="button" class="btn-mini" id="zoom-1.5" onclick="setMagnify(1.5)">1.5x</button>
             <button type="button" class="btn-mini" id="zoom-2" onclick="setMagnify(2)">2.0x</button>
+            <button type="button" class="btn-mini" id="zoom-3" onclick="setMagnify(3)">3.0x</button>
           </div>
         </div>
 
@@ -1551,7 +1552,7 @@
         focusOriginY = Math.max(0, Math.min(100, originY));
       }
 
-      [1, 1.5, 2].forEach(s => {
+      [1, 1.5, 2 ,3].forEach(s => {
         const btn = document.getElementById(`zoom-${s}`);
         if (btn) btn.classList.toggle("active", s === scale);
       });
