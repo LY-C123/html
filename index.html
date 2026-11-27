@@ -749,7 +749,7 @@
 
   <!-- 彈窗 1：加入倉庫抽屜 (Modal) -->
   <div class="modal-overlay" id="assignModal">
-    <div class="modal-content">
+    <div class="modal-content" style="box-sizing: border-box; max-width: 460px; overflow: hidden;">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
         <i class="fa-solid fa-box-archive" style="color:var(--accent);"></i>
         選擇欲入庫的抽屜格位
@@ -759,12 +759,12 @@
       </p>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
-      <select class="modal-select" id="drawerSelect"></select>
+      <select class="modal-select" id="drawerSelect" style="box-sizing: border-box; width: 100%; max-width: 100%;"></select>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">初始庫存數量 (pcs)：</label>
-      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0">
+      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
-      <div id="assignFeedbackMsg" style="display:none; padding:10px 12px; border-radius:6px; font-size:0.88rem; font-weight:600; margin-bottom:12px;"></div>
+      <div id="assignFeedbackMsg" style="display:none; padding:10px 12px; border-radius:6px; font-size:0.88rem; font-weight:600; margin-bottom:12px; box-sizing: border-box;"></div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
@@ -775,39 +775,39 @@
 
   <!-- 彈窗 2：手動修改抽屜名稱、零件與庫存 (Modal) -->
   <div class="modal-overlay" id="drawerEditModal">
-    <div class="modal-content">
+    <div class="modal-content" style="box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
         <i class="fa-solid fa-pen-to-square" style="color:var(--accent);"></i>
         編輯抽屜格位：<span id="editModalZoneTitle" style="color:var(--text-muted); font-size:0.95rem;"></span>
       </h3>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">小區 / 抽屜名稱：</label>
-      <input type="text" class="modal-input" id="editDrawerCodeInput" placeholder="例如：A-01、紅光格">
+      <input type="text" class="modal-input" id="editDrawerCodeInput" placeholder="例如：A-01、紅光格" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">存放零件名稱 (留白代表清空)：</label>
-      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻">
+      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">庫存數量 (pcs)：</label>
-      <div class="quick-qty-controls">
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
+      <div class="quick-qty-controls" style="flex-wrap:wrap; width: 100%;">
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
       </div>
-      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0">
+      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:8px;">
         <div style="display:flex; gap:6px;">
-          <button class="btn btn-secondary" onclick="clearCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="僅清空零件與數量">
+          <button type="button" class="btn btn-secondary" onclick="clearCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="僅清空零件與數量">
             <i class="fa-solid fa-eraser"></i> 清空
           </button>
-          <button class="btn btn-danger" onclick="deleteCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="直接移除這個小格位">
+          <button type="button" class="btn btn-danger" onclick="deleteCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="直接移除這個小格位">
             <i class="fa-solid fa-trash"></i> 刪除此格
           </button>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary" onclick="closeDrawerEditModal()" style="padding:7px 12px;">取消</button>
-          <button class="btn" onclick="saveDrawerEdit()" style="padding:7px 14px;"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
+          <button type="button" class="btn btn-secondary" onclick="closeDrawerEditModal()" style="padding:7px 12px;">取消</button>
+          <button type="button" class="btn" onclick="saveDrawerEdit()" style="padding:7px 14px;"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
         </div>
       </div>
     </div>
