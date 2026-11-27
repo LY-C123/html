@@ -920,11 +920,11 @@
 
     function escapeHtml(str) {
       return String(str || "")
-        .replace(/&/g, "&")
-        .replace(/</g, "<")
-        .replace(/>/g, ">")
-        .replace(/"/g, """)
-        .replace(/'/g, "'");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function getDrawerById(drawerId) {
@@ -937,22 +937,22 @@
 
     // ========== 載入、儲存與動態渲染倉庫矩陣 ==========
     function loadDrawerMapping() {
-      try {
-        const savedV3 = localStorage.getItem("zhiku_warehouse_v3");
-        if (savedV3) {
+      const savedV3 = localStorage.getItem("zhiku_warehouse_v3");
+      if (savedV3) {
+        try {
           const parsed = JSON.parse(savedV3);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             warehouseZones = parsed;
             renderDrawers();
             return;
           }
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
 
       warehouseZones = JSON.parse(JSON.stringify(DEFAULT_ZONES));
-      try {
-        const savedV2 = localStorage.getItem("zhiku_drawer_data_v2");
-        if (savedV2) {
+      const savedV2 = localStorage.getItem("zhiku_drawer_data_v2");
+      if (savedV2) {
+        try {
           const oldData = JSON.parse(savedV2);
           warehouseZones.forEach(zone => {
             zone.drawers.forEach(d => {
@@ -962,15 +962,13 @@
               }
             });
           });
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
       saveDrawerMapping();
     }
 
     function saveDrawerMapping() {
-      try {
-        localStorage.setItem("zhiku_warehouse_v3", JSON.stringify(warehouseZones));
-      } catch (e) {}
+      localStorage.setItem("zhiku_warehouse_v3", JSON.stringify(warehouseZones));
       renderDrawers();
     }
 
@@ -1262,10 +1260,10 @@
 
     // ========== 自訂顏色設定功能 ==========
     function loadSavedColors() {
-      try {
-        const saved = localStorage.getItem("zhiku_custom_colors");
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
+      const saved = localStorage.getItem("zhiku_custom_colors");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { return {}; }
+      }
       return {};
     }
 
@@ -1310,9 +1308,7 @@
           classColorMap[cName] = picker.value;
         }
       }
-      try {
-        localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
-      } catch (e) {}
+      localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
       closeColorSettings();
     }
 
@@ -1427,8 +1423,7 @@
         const selectEl = document.getElementById("drawerSelect");
         const qtyInput = document.getElementById("initialStockInput");
         const selectedDrawerId = selectEl ? selectEl.value : "";
-        const modalNameEl = document.getElementById("modalPartName");
-        const partName = (unassignedClassName || (modalNameEl ? modalNameEl.innerText : "") || "").trim();
+        const partName = (unassignedClassName || document.getElementById("modalPartName")?.innerText || "").trim();
         const rawQty = parseInt(qtyInput ? qtyInput.value : "0", 10);
 
         if (!partName || !selectedDrawerId || Number.isNaN(rawQty) || rawQty < 0) {
@@ -1517,12 +1512,9 @@
       }
     }
 
-    // ========== Teachable Machine 即時辨識引擎 (手機真高清 video + 電腦維持原樣) ==========
+    // ========== Teachable Machine 即時辨識引擎 (5 / 10 / 15 幀 + 點選局部放大) ==========
     let model = null;
     let webcam = null;
-    let mobileStream = null;
-    let mobileVideoEl = null;
-    let usingMobileHdCam = false;
     let maxPredictions = 0;
     let isPredicting = false;
     let lastLoggedPart = null;
@@ -1541,10 +1533,6 @@
     let hasDraggedZoom = false;
     let dragStartX = 0;
     let dragStartY = 0;
-
-    function isMobileDevice() {
-      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-    }
 
     function onSampleFramesChange() {
       const val = parseInt(document.getElementById("sampleFramesSelect").value, 10);
@@ -1572,7 +1560,7 @@
 
     function applyMagnifyStyle() {
       const box = document.getElementById("webcam-box");
-      const target = box ? box.querySelector("canvas.main-cam, video.main-cam") : null;
+      const target = box ? box.querySelector("canvas.main-cam, video") : null;
       const hint = document.getElementById("zoomHintBadge");
 
       if (box) {
@@ -1698,20 +1686,12 @@
       }
     }
 
-    function cleanupCameraResources() {
-      if (mobileStream) {
-        mobileStream.getTracks().forEach(track => track.stop());
-        mobileStream = null;
+    function stopCam() {
+      isPredicting = false;
+      if (animFrameId) {
+        window.cancelAnimationFrame(animFrameId);
+        animFrameId = null;
       }
-      if (mobileVideoEl) {
-        mobileVideoEl.srcObject = null;
-        if (mobileVideoEl.parentNode) {
-          mobileVideoEl.parentNode.removeChild(mobileVideoEl);
-        }
-        mobileVideoEl = null;
-      }
-      usingMobileHdCam = false;
-
       if (webcam) {
         webcam.stop();
         if (webcam.canvas && webcam.canvas.parentNode) {
@@ -1719,15 +1699,6 @@
         }
         webcam = null;
       }
-    }
-
-    function stopCam() {
-      isPredicting = false;
-      if (animFrameId) {
-        window.cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
-      cleanupCameraResources();
 
       document.getElementById("placeholder").style.display = "block";
       document.getElementById("zoomHintBadge").style.display = "none";
@@ -1756,85 +1727,13 @@
       applyModelColors();
     }
 
-    async function initMobileHdWebcam() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return false;
-      }
-
-      const hdConstraints = {
-        audio: false,
-        video: {
-          facingMode: { ideal: currentFacingMode },
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 }
-        }
-      };
-
-      const fallbackConstraints = {
-        audio: false,
-        video: {
-          facingMode: currentFacingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
-
-      let stream = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(hdConstraints);
-      } catch (e) {
-        stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-      }
-
-      const track = stream.getVideoTracks()[0];
-      if (track && track.applyConstraints) {
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        } catch (e) {}
-      }
-
-      const video = document.createElement("video");
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.muted = true;
-      video.autoplay = true;
-      video.classList.add("main-cam");
-      video.srcObject = stream;
-
-      const box = document.getElementById("webcam-box");
-      box.insertBefore(video, document.querySelector(".crosshair"));
-
-      await video.play();
-      await new Promise(resolve => {
-        if (video.readyState >= 2) {
-          resolve();
-        } else {
-          video.onloadedmetadata = () => resolve();
-        }
-      });
-
-      mobileStream = stream;
-      mobileVideoEl = video;
-      usingMobileHdCam = true;
-      return true;
-    }
-
     async function initWebcam() {
-      cleanupCameraResources();
-
-      if (isMobileDevice()) {
-        try {
-          const ok = await initMobileHdWebcam();
-          if (ok) {
-            applyMagnifyStyle();
-            return;
-          }
-        } catch (e) {
-          console.warn("手機高清串流降級改用預設鏡頭：", e);
-          cleanupCameraResources();
+      if (webcam) {
+        webcam.stop();
+        if (webcam.canvas && webcam.canvas.parentNode) {
+          webcam.canvas.parentNode.removeChild(webcam.canvas);
         }
       }
-
       webcam = new tmImage.Webcam(400, 300, false);
       await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
@@ -1861,9 +1760,7 @@
 
     async function loop() {
       if (!isPredicting) return;
-      if (usingMobileHdCam) {
-        await predict();
-      } else if (webcam) {
+      if (webcam) {
         webcam.update();
         await predict();
       }
@@ -1873,9 +1770,7 @@
     }
 
     async function predict() {
-      const inputEl = usingMobileHdCam ? mobileVideoEl : (webcam ? webcam.canvas : null);
-      if (!isPredicting || !model || !inputEl) return;
-      if (usingMobileHdCam && (inputEl.readyState < 2 || inputEl.videoWidth === 0)) return;
+      if (!isPredicting || !model || !webcam) return;
 
       const now = performance.now();
       if (now < cooldownUntil) {
@@ -1884,7 +1779,7 @@
         return;
       }
 
-      const prediction = await model.predict(inputEl);
+      const prediction = await model.predict(webcam.canvas);
       if (!isPredicting) return;
 
       const frameData = {};
@@ -2027,16 +1922,10 @@
       list.prepend(item);
     }
 
-    function initApp() {
+    window.addEventListener("DOMContentLoaded", () => {
       loadDrawerMapping();
       initPointZoomInteraction();
-    }
-
-    if (document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", initApp);
-    } else {
-      initApp();
-    }
+    });
   </script>
 </body>
 </html>
