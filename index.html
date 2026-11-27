@@ -1733,7 +1733,67 @@
         if (webcam.canvas && webcam.canvas.parentNode) {
           webcam.canvas.parentNode.removeChild(webcam.canvas);
         }
+        webcam = null;
       }
+
+      const isPhoneOrTablet = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+
+      if (isPhoneOrTablet && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: { ideal: currentFacingMode },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 }
+            }
+          });
+
+          const track = stream.getVideoTracks()[0];
+          if (track && track.applyConstraints) {
+            try {
+              const caps = track.getCapabilities ? track.getCapabilities() : {};
+              const advanced = [];
+              if (caps.focusMode && caps.focusMode.includes("continuous")) {
+                advanced.push({ focusMode: "continuous" });
+              }
+              if (caps.zoom && magnifyScale > 1) {
+                const targetZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, magnifyScale));
+                advanced.push({ zoom: targetZoom });
+              }
+              if (advanced.length > 0) {
+                await track.applyConstraints({ advanced });
+              }
+            } catch (e) {}
+          }
+
+          webcam = new tmImage.Webcam(400, 300, false);
+          webcam.webcam = document.createElement("video");
+          webcam.webcam.setAttribute("playsinline", "");
+          webcam.webcam.setAttribute("webkit-playsinline", "");
+          webcam.webcam.muted = true;
+          webcam.webcam.srcObject = stream;
+          await webcam.webcam.play();
+
+          await new Promise(resolve => {
+            if (webcam.webcam.readyState >= 2) resolve();
+            else webcam.webcam.onloadedmetadata = () => resolve();
+          });
+
+          webcam.canvas = document.createElement("canvas");
+          webcam.canvas.width = 400;
+          webcam.canvas.height = 300;
+          webcam.canvas.classList.add("main-cam");
+
+          const box = document.getElementById("webcam-box");
+          box.insertBefore(webcam.canvas, document.querySelector(".crosshair"));
+          applyMagnifyStyle();
+          return;
+        } catch (e) {
+          console.warn("手機高畫質鏡頭啟用失敗，改用預設鏡頭：", e);
+        }
+      }
+
       webcam = new tmImage.Webcam(400, 300, false);
       await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
