@@ -26,7 +26,7 @@
       --warning: #f59e0b;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; }
+- { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; }
     body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; padding: 20px; line-height: 1.5; }
 
     header {
@@ -749,7 +749,7 @@
 
   <!-- 彈窗 1：加入倉庫抽屜 (Modal) -->
   <div class="modal-overlay" id="assignModal">
-    <div class="modal-content">
+    <div class="modal-content" style="box-sizing: border-box; max-width: 460px; overflow: hidden;">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
         <i class="fa-solid fa-box-archive" style="color:var(--accent);"></i>
         選擇欲入庫的抽屜格位
@@ -759,53 +759,55 @@
       </p>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
-      <select class="modal-select" id="drawerSelect"></select>
+      <select class="modal-select" id="drawerSelect" style="box-sizing: border-box; width: 100%; max-width: 100%;"></select>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">初始庫存數量 (pcs)：</label>
-      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0">
+      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0" style="box-sizing: border-box; width: 100%; max-width: 100%;">
+
+      <div id="assignFeedbackMsg" style="display:none; padding:10px 12px; border-radius:6px; font-size:0.88rem; font-weight:600; margin-bottom:12px; box-sizing: border-box;"></div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
-        <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
+        <button class="btn" id="confirmAssignBtn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
       </div>
     </div>
   </div>
 
   <!-- 彈窗 2：手動修改抽屜名稱、零件與庫存 (Modal) -->
   <div class="modal-overlay" id="drawerEditModal">
-    <div class="modal-content">
+    <div class="modal-content" style="box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
       <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
         <i class="fa-solid fa-pen-to-square" style="color:var(--accent);"></i>
         編輯抽屜格位：<span id="editModalZoneTitle" style="color:var(--text-muted); font-size:0.95rem;"></span>
       </h3>
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">小區 / 抽屜名稱：</label>
-      <input type="text" class="modal-input" id="editDrawerCodeInput" placeholder="例如：A-01、紅光格">
+      <input type="text" class="modal-input" id="editDrawerCodeInput" placeholder="例如：A-01、紅光格" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">存放零件名稱 (留白代表清空)：</label>
-      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻">
+      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <label style="font-size:0.85rem; color:var(--text-muted); display:block;">庫存數量 (pcs)：</label>
-      <div class="quick-qty-controls">
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
-        <button class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
+      <div class="quick-qty-controls" style="flex-wrap:wrap; width: 100%;">
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
+        <button type="button" class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
       </div>
-      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0">
+      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0" style="box-sizing: border-box; width: 100%; max-width: 100%;">
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:8px;">
         <div style="display:flex; gap:6px;">
-          <button class="btn btn-secondary" onclick="clearCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="僅清空零件與數量">
+          <button type="button" class="btn btn-secondary" onclick="clearCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="僅清空零件與數量">
             <i class="fa-solid fa-eraser"></i> 清空
           </button>
-          <button class="btn btn-danger" onclick="deleteCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="直接移除這個小格位">
+          <button type="button" class="btn btn-danger" onclick="deleteCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="直接移除這個小格位">
             <i class="fa-solid fa-trash"></i> 刪除此格
           </button>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary" onclick="closeDrawerEditModal()" style="padding:7px 12px;">取消</button>
-          <button class="btn" onclick="saveDrawerEdit()" style="padding:7px 14px;"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
+          <button type="button" class="btn btn-secondary" onclick="closeDrawerEditModal()" style="padding:7px 12px;">取消</button>
+          <button type="button" class="btn" onclick="saveDrawerEdit()" style="padding:7px 14px;"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
         </div>
       </div>
     </div>
@@ -901,6 +903,7 @@
     let currentIdentifiedDrawerId = "";
     let currentHighlightColor = "var(--accent)";
     let unassignedClassName = "";
+    let assignCloseTimer = null;
 
     // 分頁切換
     function switchView(view) {
@@ -1338,17 +1341,51 @@
       }
     }
 
-    // ========== 未入庫分配抽屜 (Modal) ==========
-    function openAssignModal() {
-      if (!unassignedClassName) return;
+    // ========== 未入庫分配抽屜 (系統內提示訊息，不用 alert) ==========
+    function showAssignFeedback(type, message) {
+      const box = document.getElementById("assignFeedbackMsg");
+      if (!box) return;
+      box.style.display = "block";
+      if (type === "success") {
+        box.style.background = "rgba(34, 197, 94, 0.16)";
+        box.style.border = "1px solid var(--success)";
+        box.style.color = "#86efac";
+      } else {
+        box.style.background = "rgba(239, 68, 68, 0.16)";
+        box.style.border = "1px solid var(--danger)";
+        box.style.color = "#fca5a5";
+      }
+      box.innerText = message;
+    }
 
-      const totalDrawers = warehouseZones.reduce((sum, z) => sum + z.drawers.length, 0);
-      if (totalDrawers === 0) {
-        alert("目前倉庫沒有任何小格位，請先新增區域與小格位！");
+    function clearAssignFeedback() {
+      const box = document.getElementById("assignFeedbackMsg");
+      if (!box) return;
+      box.style.display = "none";
+      box.innerText = "";
+    }
+
+    function openAssignModal() {
+      const partName = (unassignedClassName || currentIdentifiedPart || "").trim();
+      if (!partName) {
+        addLog("入庫操作", "未成功，請再試一次");
         return;
       }
 
-      document.getElementById("modalPartName").innerText = unassignedClassName;
+      const totalDrawers = warehouseZones.reduce((sum, z) => sum + z.drawers.length, 0);
+      if (totalDrawers === 0) {
+        addLog("入庫操作", "未成功，請再試一次");
+        return;
+      }
+
+      clearTimeout(assignCloseTimer);
+      clearAssignFeedback();
+      const btn = document.getElementById("confirmAssignBtn");
+      if (btn) btn.disabled = false;
+
+      document.getElementById("modalPartName").innerText = partName;
+      document.getElementById("initialStockInput").value = "10";
+
       const select = document.getElementById("drawerSelect");
       select.innerHTML = "";
 
@@ -1371,45 +1408,78 @@
     }
 
     function closeAssignModal() {
+      clearTimeout(assignCloseTimer);
+      clearAssignFeedback();
+      const btn = document.getElementById("confirmAssignBtn");
+      if (btn) btn.disabled = false;
       document.getElementById("assignModal").style.display = "none";
     }
 
     function confirmDrawerAssign() {
-      const selectedDrawerId = document.getElementById("drawerSelect").value;
-      const initialQty = Math.max(0, parseInt(document.getElementById("initialStockInput").value, 10) || 0);
-      if (!selectedDrawerId || !unassignedClassName) return;
+      const btn = document.getElementById("confirmAssignBtn");
+      try {
+        if (btn) btn.disabled = true;
 
-      const found = getDrawerById(selectedDrawerId);
-      if (!found) return;
+        const selectEl = document.getElementById("drawerSelect");
+        const qtyInput = document.getElementById("initialStockInput");
+        const selectedDrawerId = selectEl ? selectEl.value : "";
+        const partName = (unassignedClassName || document.getElementById("modalPartName")?.innerText || "").trim();
+        const rawQty = parseInt(qtyInput ? qtyInput.value : "0", 10);
 
-      if (found.drawer.item && found.drawer.item.trim() && found.drawer.item !== unassignedClassName) {
-        if (!confirm(`抽屜 [${found.drawer.code}] 原本放置的是「${found.drawer.item}」，確定要替換為「${unassignedClassName}」嗎？`)) {
+        if (!partName || !selectedDrawerId || Number.isNaN(rawQty) || rawQty < 0) {
+          showAssignFeedback("error", "未成功，請再試一次。請確認抽屜格位與庫存數量是否正確。");
+          addLog(partName || "入庫操作", "未成功，請再試一次");
+          if (btn) btn.disabled = false;
           return;
         }
+
+        const found = getDrawerById(selectedDrawerId);
+        if (!found || !found.drawer) {
+          showAssignFeedback("error", "未成功，請再試一次。找不到所選的抽屜格位。");
+          addLog(partName, "未成功，請再試一次");
+          if (btn) btn.disabled = false;
+          return;
+        }
+
+        const previousItem = (found.drawer.item || "").trim();
+        found.drawer.item = partName;
+        found.drawer.qty = rawQty;
+
+        currentIdentifiedPart = partName;
+        currentIdentifiedDrawerId = found.drawer.id;
+        currentHighlightColor = classColorMap[partName] || "var(--accent)";
+        unassignedClassName = "";
+
+        saveDrawerMapping();
+
+        document.getElementById("quickAssignBtn").style.display = "none";
+        document.getElementById("stockAdjustBtn").style.display = "inline-flex";
+
+        const drawerEl = document.getElementById("targetDrawer");
+        const qtyEl = document.getElementById("targetQty");
+        const specEl = document.getElementById("partSpec");
+
+        drawerEl.innerText = found.drawer.code;
+        drawerEl.style.color = currentHighlightColor;
+        qtyEl.innerText = `${rawQty} pcs`;
+        specEl.innerText = `規格：已成功入庫至 [${found.zone.name} · ${found.drawer.code}]，庫存登記為 ${rawQty} pcs。`;
+
+        const logMsg = previousItem && previousItem !== partName
+          ? `入庫成功，已替換 [${previousItem}] 並登記至 [${found.drawer.code}] (${rawQty} pcs)`
+          : `入庫成功至 [${found.drawer.code}] (${rawQty} pcs)`;
+        addLog(partName, logMsg);
+
+        showAssignFeedback("success", `入庫成功！「${partName}」已登記至 ${found.drawer.code}（${rawQty} pcs）。`);
+
+        assignCloseTimer = setTimeout(() => {
+          closeAssignModal();
+        }, 900);
+      } catch (err) {
+        console.error(err);
+        showAssignFeedback("error", "未成功，請再試一次。系統處理入庫時發生異常。");
+        addLog("入庫操作", "未成功，請再試一次");
+        if (btn) btn.disabled = false;
       }
-
-      found.drawer.item = unassignedClassName;
-      found.drawer.qty = initialQty;
-
-      currentIdentifiedDrawerId = found.drawer.id;
-      currentHighlightColor = classColorMap[unassignedClassName] || "var(--accent)";
-      saveDrawerMapping();
-
-      closeAssignModal();
-      document.getElementById("quickAssignBtn").style.display = "none";
-      document.getElementById("stockAdjustBtn").style.display = "inline-flex";
-
-      const drawerEl = document.getElementById("targetDrawer");
-      const qtyEl = document.getElementById("targetQty");
-      const specEl = document.getElementById("partSpec");
-
-      drawerEl.innerText = found.drawer.code;
-      drawerEl.style.color = currentHighlightColor;
-      qtyEl.innerText = `${initialQty} pcs`;
-      specEl.innerText = `規格：已成功入庫至 [${found.zone.name} · ${found.drawer.code}]，庫存登記為 ${initialQty} pcs。`;
-
-      addLog(unassignedClassName, `新入庫至 [${found.drawer.code}] (庫存: ${initialQty} pcs)`);
-      alert(`✅ 類別 [${unassignedClassName}] 已入庫至抽屜 [${found.drawer.code}]！`);
     }
 
     // ========== 模型設定彈窗 ==========
@@ -1434,10 +1504,10 @@
           await loadAIModel();
           sampleBuffer = [];
           document.getElementById("camStatus").innerText = "狀態：即時辨識中";
-          alert("✅ 新模型載入成功，類別與色標已同步更新！");
+          addLog("模型設定", "新模型載入成功");
         } catch (err) {
           document.getElementById("camStatus").innerText = "狀態：模型載入失敗";
-          alert("❌ 新模型載入失敗，請檢查網址是否正確！");
+          addLog("模型設定", "未成功，請再試一次");
         }
       }
     }
@@ -1450,14 +1520,14 @@
     let lastLoggedPart = null;
     let animFrameId = null;
 
-    let sampleCount = 5; // 支援 5 / 10 / 15 幀
+    let sampleCount = 5;
     let sampleBuffer = [];
     let cooldownUntil = 0;
     const cooldownMs = 600;
 
     let currentFacingMode = "environment";
     let magnifyScale = 1;
-    let focusOriginX = 50; // 百分比 0~100
+    let focusOriginX = 50;
     let focusOriginY = 50;
     let isDraggingZoom = false;
     let hasDraggedZoom = false;
@@ -1571,7 +1641,6 @@
         if (magnifyScale === 1) {
           setMagnify(1.5, pctX, pctY);
         } else {
-          // 已在放大狀態時，點選新位置即把局部放大焦點移到該處
           focusOriginX = (focusOriginX + pctX) / 2;
           focusOriginY = (focusOriginY + pctY) / 2;
           applyMagnifyStyle();
