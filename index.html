@@ -937,22 +937,22 @@
 
     // ========== 載入、儲存與動態渲染倉庫矩陣 ==========
     function loadDrawerMapping() {
-      const savedV3 = localStorage.getItem("zhiku_warehouse_v3");
-      if (savedV3) {
-        try {
+      try {
+        const savedV3 = localStorage.getItem("zhiku_warehouse_v3");
+        if (savedV3) {
           const parsed = JSON.parse(savedV3);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             warehouseZones = parsed;
             renderDrawers();
             return;
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
 
       warehouseZones = JSON.parse(JSON.stringify(DEFAULT_ZONES));
-      const savedV2 = localStorage.getItem("zhiku_drawer_data_v2");
-      if (savedV2) {
-        try {
+      try {
+        const savedV2 = localStorage.getItem("zhiku_drawer_data_v2");
+        if (savedV2) {
           const oldData = JSON.parse(savedV2);
           warehouseZones.forEach(zone => {
             zone.drawers.forEach(d => {
@@ -962,13 +962,15 @@
               }
             });
           });
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
       saveDrawerMapping();
     }
 
     function saveDrawerMapping() {
-      localStorage.setItem("zhiku_warehouse_v3", JSON.stringify(warehouseZones));
+      try {
+        localStorage.setItem("zhiku_warehouse_v3", JSON.stringify(warehouseZones));
+      } catch (e) {}
       renderDrawers();
     }
 
@@ -1260,10 +1262,10 @@
 
     // ========== 自訂顏色設定功能 ==========
     function loadSavedColors() {
-      const saved = localStorage.getItem("zhiku_custom_colors");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) { return {}; }
-      }
+      try {
+        const saved = localStorage.getItem("zhiku_custom_colors");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
       return {};
     }
 
@@ -1308,7 +1310,9 @@
           classColorMap[cName] = picker.value;
         }
       }
-      localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
+      try {
+        localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
+      } catch (e) {}
       closeColorSettings();
     }
 
@@ -1423,7 +1427,8 @@
         const selectEl = document.getElementById("drawerSelect");
         const qtyInput = document.getElementById("initialStockInput");
         const selectedDrawerId = selectEl ? selectEl.value : "";
-        const partName = (unassignedClassName || document.getElementById("modalPartName")?.innerText || "").trim();
+        const modalNameEl = document.getElementById("modalPartName");
+        const partName = (unassignedClassName || (modalNameEl ? modalNameEl.innerText : "") || "").trim();
         const rawQty = parseInt(qtyInput ? qtyInput.value : "0", 10);
 
         if (!partName || !selectedDrawerId || Number.isNaN(rawQty) || rawQty < 0) {
@@ -1512,12 +1517,11 @@
       }
     }
 
-    // ========== Teachable Machine 即時辨識引擎 (手機高清鏡頭強化 + 桌機維持原樣) ==========
+    // ========== Teachable Machine 即時辨識引擎 (手機真高清 video + 電腦維持原樣) ==========
     let model = null;
     let webcam = null;
     let mobileStream = null;
     let mobileVideoEl = null;
-    let mobileCanvasEl = null;
     let usingMobileHdCam = false;
     let maxPredictions = 0;
     let isPredicting = false;
@@ -1539,8 +1543,7 @@
     let dragStartY = 0;
 
     function isMobileDevice() {
-      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") ||
-        (navigator.maxTouchPoints > 1 && window.innerWidth <= 992);
+      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
     }
 
     function onSampleFramesChange() {
@@ -1569,7 +1572,7 @@
 
     function applyMagnifyStyle() {
       const box = document.getElementById("webcam-box");
-      const target = box ? box.querySelector("canvas.main-cam, video") : null;
+      const target = box ? box.querySelector("canvas.main-cam, video.main-cam") : null;
       const hint = document.getElementById("zoomHintBadge");
 
       if (box) {
@@ -1702,12 +1705,11 @@
       }
       if (mobileVideoEl) {
         mobileVideoEl.srcObject = null;
+        if (mobileVideoEl.parentNode) {
+          mobileVideoEl.parentNode.removeChild(mobileVideoEl);
+        }
         mobileVideoEl = null;
       }
-      if (mobileCanvasEl && mobileCanvasEl.parentNode) {
-        mobileCanvasEl.parentNode.removeChild(mobileCanvasEl);
-      }
-      mobileCanvasEl = null;
       usingMobileHdCam = false;
 
       if (webcam) {
@@ -1764,8 +1766,7 @@
         video: {
           facingMode: { ideal: currentFacingMode },
           width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-          focusMode: { ideal: "continuous" }
+          height: { ideal: 1080, min: 720 }
         }
       };
 
@@ -1785,12 +1786,23 @@
         stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
       }
 
+      const track = stream.getVideoTracks()[0];
+      if (track && track.applyConstraints) {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+        } catch (e) {}
+      }
+
       const video = document.createElement("video");
       video.setAttribute("playsinline", "");
       video.setAttribute("webkit-playsinline", "");
       video.muted = true;
       video.autoplay = true;
+      video.classList.add("main-cam");
       video.srcObject = stream;
+
+      const box = document.getElementById("webcam-box");
+      box.insertBefore(video, document.querySelector(".crosshair"));
 
       await video.play();
       await new Promise(resolve => {
@@ -1801,49 +1813,10 @@
         }
       });
 
-      const track = stream.getVideoTracks()[0];
-      if (track && track.applyConstraints) {
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        } catch (e) {}
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = 400;
-      canvas.height = 300;
-      canvas.classList.add("main-cam");
-
-      const box = document.getElementById("webcam-box");
-      box.insertBefore(canvas, document.querySelector(".crosshair"));
-
       mobileStream = stream;
       mobileVideoEl = video;
-      mobileCanvasEl = canvas;
       usingMobileHdCam = true;
       return true;
-    }
-
-    function drawMobileHdFrame() {
-      if (!usingMobileHdCam || !mobileVideoEl || !mobileCanvasEl) return;
-      const vw = mobileVideoEl.videoWidth || 1280;
-      const vh = mobileVideoEl.videoHeight || 720;
-      const cw = mobileCanvasEl.width;
-      const ch = mobileCanvasEl.height;
-
-      const targetRatio = cw / ch;
-      const srcRatio = vw / vh;
-      let sx = 0, sy = 0, sw = vw, sh = vh;
-
-      if (srcRatio > targetRatio) {
-        sw = Math.round(vh * targetRatio);
-        sx = Math.round((vw - sw) / 2);
-      } else if (srcRatio < targetRatio) {
-        sh = Math.round(vw / targetRatio);
-        sy = Math.round((vh - sh) / 2);
-      }
-
-      const ctx = mobileCanvasEl.getContext("2d");
-      ctx.drawImage(mobileVideoEl, sx, sy, sw, sh, 0, 0, cw, ch);
     }
 
     async function initWebcam() {
@@ -1853,7 +1826,6 @@
         try {
           const ok = await initMobileHdWebcam();
           if (ok) {
-            drawMobileHdFrame();
             applyMagnifyStyle();
             return;
           }
@@ -1890,7 +1862,6 @@
     async function loop() {
       if (!isPredicting) return;
       if (usingMobileHdCam) {
-        drawMobileHdFrame();
         await predict();
       } else if (webcam) {
         webcam.update();
@@ -1902,8 +1873,9 @@
     }
 
     async function predict() {
-      const sourceCanvas = usingMobileHdCam ? mobileCanvasEl : (webcam ? webcam.canvas : null);
-      if (!isPredicting || !model || !sourceCanvas) return;
+      const inputEl = usingMobileHdCam ? mobileVideoEl : (webcam ? webcam.canvas : null);
+      if (!isPredicting || !model || !inputEl) return;
+      if (usingMobileHdCam && (inputEl.readyState < 2 || inputEl.videoWidth === 0)) return;
 
       const now = performance.now();
       if (now < cooldownUntil) {
@@ -1912,7 +1884,7 @@
         return;
       }
 
-      const prediction = await model.predict(sourceCanvas);
+      const prediction = await model.predict(inputEl);
       if (!isPredicting) return;
 
       const frameData = {};
@@ -2055,10 +2027,16 @@
       list.prepend(item);
     }
 
-    window.addEventListener("DOMContentLoaded", () => {
+    function initApp() {
       loadDrawerMapping();
       initPointZoomInteraction();
-    });
+    }
+
+    if (document.readyState === "loading") {
+      window.addEventListener("DOMContentLoaded", initApp);
+    } else {
+      initApp();
+    }
   </script>
 </body>
 </html>
