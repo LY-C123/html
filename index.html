@@ -920,11 +920,11 @@
 
     function escapeHtml(str) {
       return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+        .replace(/&/g, "&")
+        .replace(/</g, "<")
+        .replace(/>/g, ">")
+        .replace(/"/g, """)
+        .replace(/'/g, "'");
     }
 
     function getDrawerById(drawerId) {
@@ -1512,9 +1512,13 @@
       }
     }
 
-    // ========== Teachable Machine 即時辨識引擎 (5 / 10 / 15 幀 + 點選局部放大) ==========
+    // ========== Teachable Machine 即時辨識引擎 (手機高清鏡頭強化 + 桌機維持原樣) ==========
     let model = null;
     let webcam = null;
+    let mobileStream = null;
+    let mobileVideoEl = null;
+    let mobileCanvasEl = null;
+    let usingMobileHdCam = false;
     let maxPredictions = 0;
     let isPredicting = false;
     let lastLoggedPart = null;
@@ -1533,6 +1537,11 @@
     let hasDraggedZoom = false;
     let dragStartX = 0;
     let dragStartY = 0;
+
+    function isMobileDevice() {
+      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") ||
+        (navigator.maxTouchPoints > 1 && window.innerWidth <= 992);
+    }
 
     function onSampleFramesChange() {
       const val = parseInt(document.getElementById("sampleFramesSelect").value, 10);
@@ -1686,12 +1695,21 @@
       }
     }
 
-    function stopCam() {
-      isPredicting = false;
-      if (animFrameId) {
-        window.cancelAnimationFrame(animFrameId);
-        animFrameId = null;
+    function cleanupCameraResources() {
+      if (mobileStream) {
+        mobileStream.getTracks().forEach(track => track.stop());
+        mobileStream = null;
       }
+      if (mobileVideoEl) {
+        mobileVideoEl.srcObject = null;
+        mobileVideoEl = null;
+      }
+      if (mobileCanvasEl && mobileCanvasEl.parentNode) {
+        mobileCanvasEl.parentNode.removeChild(mobileCanvasEl);
+      }
+      mobileCanvasEl = null;
+      usingMobileHdCam = false;
+
       if (webcam) {
         webcam.stop();
         if (webcam.canvas && webcam.canvas.parentNode) {
@@ -1699,6 +1717,15 @@
         }
         webcam = null;
       }
+    }
+
+    function stopCam() {
+      isPredicting = false;
+      if (animFrameId) {
+        window.cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      cleanupCameraResources();
 
       document.getElementById("placeholder").style.display = "block";
       document.getElementById("zoomHintBadge").style.display = "none";
@@ -1727,13 +1754,115 @@
       applyModelColors();
     }
 
+    async function initMobileHdWebcam() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return false;
+      }
+
+      const hdConstraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: currentFacingMode },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          focusMode: { ideal: "continuous" }
+        }
+      };
+
+      const fallbackConstraints = {
+        audio: false,
+        video: {
+          facingMode: currentFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(hdConstraints);
+      } catch (e) {
+        stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+      }
+
+      const video = document.createElement("video");
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.muted = true;
+      video.autoplay = true;
+      video.srcObject = stream;
+
+      await video.play();
+      await new Promise(resolve => {
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          video.onloadedmetadata = () => resolve();
+        }
+      });
+
+      const track = stream.getVideoTracks()[0];
+      if (track && track.applyConstraints) {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+        } catch (e) {}
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 400;
+      canvas.height = 300;
+      canvas.classList.add("main-cam");
+
+      const box = document.getElementById("webcam-box");
+      box.insertBefore(canvas, document.querySelector(".crosshair"));
+
+      mobileStream = stream;
+      mobileVideoEl = video;
+      mobileCanvasEl = canvas;
+      usingMobileHdCam = true;
+      return true;
+    }
+
+    function drawMobileHdFrame() {
+      if (!usingMobileHdCam || !mobileVideoEl || !mobileCanvasEl) return;
+      const vw = mobileVideoEl.videoWidth || 1280;
+      const vh = mobileVideoEl.videoHeight || 720;
+      const cw = mobileCanvasEl.width;
+      const ch = mobileCanvasEl.height;
+
+      const targetRatio = cw / ch;
+      const srcRatio = vw / vh;
+      let sx = 0, sy = 0, sw = vw, sh = vh;
+
+      if (srcRatio > targetRatio) {
+        sw = Math.round(vh * targetRatio);
+        sx = Math.round((vw - sw) / 2);
+      } else if (srcRatio < targetRatio) {
+        sh = Math.round(vw / targetRatio);
+        sy = Math.round((vh - sh) / 2);
+      }
+
+      const ctx = mobileCanvasEl.getContext("2d");
+      ctx.drawImage(mobileVideoEl, sx, sy, sw, sh, 0, 0, cw, ch);
+    }
+
     async function initWebcam() {
-      if (webcam) {
-        webcam.stop();
-        if (webcam.canvas && webcam.canvas.parentNode) {
-          webcam.canvas.parentNode.removeChild(webcam.canvas);
+      cleanupCameraResources();
+
+      if (isMobileDevice()) {
+        try {
+          const ok = await initMobileHdWebcam();
+          if (ok) {
+            drawMobileHdFrame();
+            applyMagnifyStyle();
+            return;
+          }
+        } catch (e) {
+          console.warn("手機高清串流降級改用預設鏡頭：", e);
+          cleanupCameraResources();
         }
       }
+
       webcam = new tmImage.Webcam(400, 300, false);
       await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
@@ -1760,7 +1889,10 @@
 
     async function loop() {
       if (!isPredicting) return;
-      if (webcam) {
+      if (usingMobileHdCam) {
+        drawMobileHdFrame();
+        await predict();
+      } else if (webcam) {
         webcam.update();
         await predict();
       }
@@ -1770,7 +1902,8 @@
     }
 
     async function predict() {
-      if (!isPredicting || !model || !webcam) return;
+      const sourceCanvas = usingMobileHdCam ? mobileCanvasEl : (webcam ? webcam.canvas : null);
+      if (!isPredicting || !model || !sourceCanvas) return;
 
       const now = performance.now();
       if (now < cooldownUntil) {
@@ -1779,7 +1912,7 @@
         return;
       }
 
-      const prediction = await model.predict(webcam.canvas);
+      const prediction = await model.predict(sourceCanvas);
       if (!isPredicting) return;
 
       const frameData = {};
