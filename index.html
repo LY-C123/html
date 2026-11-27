@@ -1686,12 +1686,45 @@
       }
     }
 
+    window._hdCam = { stream: null, video: null, track: null, hwZoom: false };
+
+    function _releaseHdCam() {
+      if (window._hdCam.stream) {
+        window._hdCam.stream.getTracks().forEach(t => t.stop());
+      }
+      if (window._hdCam.video && window._hdCam.video.parentNode) {
+        window._hdCam.video.parentNode.removeChild(window._hdCam.video);
+      }
+      window._hdCam = { stream: null, video: null, track: null, hwZoom: false };
+    }
+
+    async function _syncPhoneCameraLens() {
+      const track = window._hdCam.track;
+      if (!track || !track.applyConstraints) return;
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        const adv = [];
+        if (caps.focusMode && caps.focusMode.includes("continuous")) {
+          adv.push({ focusMode: "continuous" });
+        }
+        if (caps.zoom) {
+          const z = Math.min(caps.zoom.max, Math.max(caps.zoom.min, magnifyScale));
+          adv.push({ zoom: z });
+          window._hdCam.hwZoom = true;
+        }
+        if (adv.length > 0) {
+          await track.applyConstraints({ advanced: adv });
+        }
+      } catch (e) {}
+    }
+
     function stopCam() {
       isPredicting = false;
       if (animFrameId) {
         window.cancelAnimationFrame(animFrameId);
         animFrameId = null;
       }
+      _releaseHdCam();
       if (webcam) {
         webcam.stop();
         if (webcam.canvas && webcam.canvas.parentNode) {
@@ -1728,6 +1761,7 @@
     }
 
     async function initWebcam() {
+      _releaseHdCam();
       if (webcam) {
         webcam.stop();
         if (webcam.canvas && webcam.canvas.parentNode) {
@@ -1736,9 +1770,10 @@
         webcam = null;
       }
 
-      const isPhoneOrTablet = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      const box = document.getElementById("webcam-box");
+      const crosshair = document.querySelector(".crosshair");
 
-      if (isPhoneOrTablet && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
@@ -1749,48 +1784,30 @@
             }
           });
 
+          const video = document.createElement("video");
+          video.setAttribute("playsinline", "");
+          video.setAttribute("webkit-playsinline", "");
+          video.muted = true;
+          video.autoplay = true;
+          video.classList.add("main-cam");
+          video.srcObject = stream;
+
+          box.insertBefore(video, crosshair);
+          await video.play();
+          await new Promise(r => video.readyState >= 2 ? r() : (video.onloadedmetadata = r));
+
           const track = stream.getVideoTracks()[0];
-          if (track && track.applyConstraints) {
-            try {
-              const caps = track.getCapabilities ? track.getCapabilities() : {};
-              const advanced = [];
-              if (caps.focusMode && caps.focusMode.includes("continuous")) {
-                advanced.push({ focusMode: "continuous" });
-              }
-              if (caps.zoom && magnifyScale > 1) {
-                const targetZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, magnifyScale));
-                advanced.push({ zoom: targetZoom });
-              }
-              if (advanced.length > 0) {
-                await track.applyConstraints({ advanced });
-              }
-            } catch (e) {}
+          window._hdCam = { stream, video, track, hwZoom: false };
+          await _syncPhoneCameraLens();
+
+          const s = track && track.getSettings ? track.getSettings() : {};
+          if (s.width && s.height) {
+            document.getElementById("camStatus").innerText = `狀態：高清辨識中 (${s.width}x${s.height})`;
           }
-
-          webcam = new tmImage.Webcam(400, 300, false);
-          webcam.webcam = document.createElement("video");
-          webcam.webcam.setAttribute("playsinline", "");
-          webcam.webcam.setAttribute("webkit-playsinline", "");
-          webcam.webcam.muted = true;
-          webcam.webcam.srcObject = stream;
-          await webcam.webcam.play();
-
-          await new Promise(resolve => {
-            if (webcam.webcam.readyState >= 2) resolve();
-            else webcam.webcam.onloadedmetadata = () => resolve();
-          });
-
-          webcam.canvas = document.createElement("canvas");
-          webcam.canvas.width = 400;
-          webcam.canvas.height = 300;
-          webcam.canvas.classList.add("main-cam");
-
-          const box = document.getElementById("webcam-box");
-          box.insertBefore(webcam.canvas, document.querySelector(".crosshair"));
           applyMagnifyStyle();
           return;
-        } catch (e) {
-          console.warn("手機高畫質鏡頭啟用失敗，改用預設鏡頭：", e);
+        } catch (err) {
+          _releaseHdCam();
         }
       }
 
@@ -1799,8 +1816,7 @@
       await webcam.play();
 
       webcam.canvas.classList.add("main-cam");
-      const box = document.getElementById("webcam-box");
-      box.insertBefore(webcam.canvas, document.querySelector(".crosshair"));
+      box.insertBefore(webcam.canvas, crosshair);
       applyMagnifyStyle();
     }
 
@@ -1820,7 +1836,9 @@
 
     async function loop() {
       if (!isPredicting) return;
-      if (webcam) {
+      if (window._hdCam.video) {
+        await predict();
+      } else if (webcam) {
         webcam.update();
         await predict();
       }
@@ -1829,8 +1847,16 @@
       }
     }
 
+    let _lastZoomVal = 1;
     async function predict() {
-      if (!isPredicting || !model || !webcam) return;
+      const source = window._hdCam.video || (webcam ? webcam.canvas : null);
+      if (!isPredicting || !model || !source) return;
+      if (window._hdCam.video && window._hdCam.video.readyState < 2) return;
+
+      if (window._hdCam.track && _lastZoomVal !== magnifyScale) {
+        _lastZoomVal = magnifyScale;
+        await _syncPhoneCameraLens();
+      }
 
       const now = performance.now();
       if (now < cooldownUntil) {
@@ -1839,7 +1865,7 @@
         return;
       }
 
-      const prediction = await model.predict(webcam.canvas);
+      const prediction = await model.predict(source);
       if (!isPredicting) return;
 
       const frameData = {};
@@ -1856,7 +1882,6 @@
         cooldownUntil = performance.now() + cooldownMs;
       }
     }
-
     function evaluateSamples() {
       const classTotals = {};
       sampleBuffer.forEach(frame => {
